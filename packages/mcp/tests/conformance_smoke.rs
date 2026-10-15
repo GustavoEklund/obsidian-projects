@@ -38,3 +38,14 @@ fn parse_is_the_inverse_of_as_str() {
     }
     assert_eq!(oprojects_mcp::types::Priority::parse("urgent"), None);
 }
+
+#[test]
+fn json_eq_treats_whole_numbers_alike_and_ignores_key_order() {
+    use common::json_eq;
+    assert!(json_eq(&json!(3), &json!(3.0)));
+    assert!(json_eq(&json!({"a": [1, {"b": 2.0}], "c": null}), &json!({"c": null, "a": [1.0, {"b": 2}]})));
+    assert!(!json_eq(&json!(3), &json!(3.5)));
+    assert!(!json_eq(&json!([1, 2]), &json!([2, 1])));
+    assert!(!json_eq(&json!({"a": 1}), &json!({"a": 1, "b": 2})));
+    assert!(!json_eq(&json!("3"), &json!(3)));
+}
