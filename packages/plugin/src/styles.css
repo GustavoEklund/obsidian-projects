@@ -1,0 +1,1251 @@
+/* ============================================================================
+   Cards — board styles.
+   Everything is prefixed `op-` and built on Obsidian's own CSS variables, so any
+   light/dark theme works. Layout reacts to the *pane* width (container queries),
+   not the window width.
+   ========================================================================== */
+
+.op-root,
+.op-pop {
+  --op-accent: var(--interactive-accent, #7c5cff);
+  --op-border: var(--background-modifier-border, rgba(128, 128, 128, 0.25));
+  --op-hover: var(--background-modifier-hover, rgba(128, 128, 128, 0.12));
+  --op-muted: var(--text-muted, #888);
+  --op-faint: var(--text-faint, #aaa);
+  --op-radius: var(--radius-m, 8px);
+  --op-radius-s: var(--radius-s, 5px);
+  --op-red: var(--color-red, #e5484d);
+  --op-orange: var(--color-orange, #f76b15);
+  --op-yellow: var(--color-yellow, #e5a50a);
+  --op-green: var(--color-green, #30a46c);
+  --op-blue: var(--color-blue, #3e63dd);
+  --op-purple: var(--color-purple, #8e4ec6);
+  font-size: var(--font-ui-small, 13px);
+}
+
+/* Same box model as Obsidian's own UI, so widths like `width: 100%` include padding and border
+   whatever the theme (or a plain browser) does. */
+.op-root,
+.op-root *,
+.op-root *::before,
+.op-root *::after,
+.op-pop,
+.op-pop *,
+.op-pop *::before,
+.op-pop *::after {
+  box-sizing: border-box;
+}
+
+.op-root [hidden],
+.op-pop [hidden] {
+  display: none !important;
+}
+
+/* --- neutralize Obsidian's global <button> styling inside our UI -------------
+   Obsidian styles `button:not(.clickable-icon)` (and its :hover) with a background, a shadow,
+   a fixed height and padding. This list has specificity (0,2,0): it beats that rule whatever the
+   stylesheet order, and each component rule below (same weight, later in the file) then wins
+   over this reset. Do not raise its specificity or it will start overriding the components. */
+.op-root .op-pill,
+.op-root .op-toggle,
+.op-root .op-link-btn,
+.op-root .op-btn-primary,
+.op-root .op-btn,
+.op-root .op-add,
+.op-root .op-icon-btn,
+.op-root .op-key-btn,
+.op-root .op-label-x,
+.op-root .op-tab,
+.op-root .op-search-clear,
+.op-pop .op-pop-item {
+  appearance: none;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.op-root .op-pill:hover,
+.op-root .op-toggle:hover,
+.op-root .op-link-btn:hover,
+.op-root .op-btn-primary:hover,
+.op-root .op-btn:hover,
+.op-root .op-add:hover,
+.op-root .op-icon-btn:hover,
+.op-root .op-key-btn:hover,
+.op-root .op-label-x:hover,
+.op-root .op-tab:hover,
+.op-root .op-search-clear:hover,
+.op-pop .op-pop-item:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+/* Any other <button> (e.g. in the composer) gets the basics too. */
+.op-root button,
+.op-pop button {
+  appearance: none;
+  box-shadow: none;
+  font: inherit;
+}
+.op-root .op-icon {
+  flex: none;
+  display: block;
+}
+.op-spacer {
+  flex: 1 1 auto;
+}
+
+/* The board fills the whole pane: drop the default padding of Obsidian's view container. */
+.workspace-leaf-content[data-type='obsidian-projects-board'] .view-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* --- shell ------------------------------------------------------------------- */
+.op-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  color: var(--text-normal);
+  container-type: inline-size;
+  container-name: oc;
+}
+.op-root:focus {
+  outline: none;
+}
+.op-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+.op-loading {
+  position: absolute;
+  inset: 52px 0 0 0;
+  display: grid;
+  place-items: center;
+  color: var(--op-muted);
+  background: color-mix(in srgb, var(--background-primary) 80%, transparent);
+  z-index: 5;
+}
+
+/* --- toolbar ------------------------------------------------------------------ */
+.op-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--op-border);
+}
+.op-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: clamp(150px, 26cqi, 260px);
+  color: var(--op-muted);
+}
+.op-search > .op-icon {
+  position: absolute;
+  left: 9px;
+  pointer-events: none;
+}
+.op-root .op-search-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 28px 0 30px;
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  box-shadow: none;
+}
+.op-root .op-search-input:focus {
+  border-color: var(--op-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 25%, transparent);
+}
+.op-root .op-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.op-root .op-search-clear {
+  position: absolute;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--op-muted);
+}
+.op-root .op-search-clear:hover {
+  background: var(--op-hover);
+  color: var(--text-normal);
+}
+.op-filters,
+.op-views {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.op-root .op-pill,
+.op-root .op-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius-s);
+  color: var(--text-normal);
+  background: transparent;
+  white-space: nowrap;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.op-root .op-pill:hover,
+.op-root .op-toggle:hover {
+  background: var(--op-hover);
+}
+.op-root .op-pill.is-active,
+.op-root .op-toggle.is-on {
+  border-color: var(--op-accent);
+  background: color-mix(in srgb, var(--op-accent) 12%, transparent);
+  color: var(--op-accent);
+}
+.op-root .op-pill .op-icon {
+  opacity: 0.6;
+}
+.op-pill-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--op-accent);
+  color: var(--text-on-accent, #fff);
+  font-size: 10px;
+  font-weight: 700;
+}
+.op-root .op-link-btn {
+  color: var(--op-muted);
+  padding: 0 4px;
+  height: 28px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.op-root .op-link-btn:hover {
+  color: var(--text-normal);
+}
+.op-root .op-btn-primary,
+.op-pop .op-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--op-radius-s);
+  background: var(--op-accent);
+  color: var(--text-on-accent, #fff);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.op-root .op-btn-primary:hover {
+  background: var(--interactive-accent-hover, var(--op-accent));
+  filter: brightness(1.05);
+}
+.op-root .op-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--op-radius-s);
+  color: var(--op-muted);
+}
+.op-root .op-btn:hover {
+  background: var(--op-hover);
+  color: var(--text-normal);
+}
+
+/* --- board & columns ---------------------------------------------------------- */
+.op-board {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.op-col {
+  flex: 1 1 280px;
+  min-width: 250px;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: var(--op-radius);
+  background: var(--background-secondary);
+  border: 1px solid transparent;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.op-col.op-col-over {
+  border-color: color-mix(in srgb, var(--op-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--op-accent) 7%, var(--background-secondary));
+}
+.op-col-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 12px 7px;
+  color: var(--op-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.op-col-is-done .op-col-head .op-icon {
+  color: var(--op-green);
+}
+.op-col-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.op-col-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--op-hover);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.op-col-count.is-over {
+  background: color-mix(in srgb, var(--op-red) 18%, transparent);
+  color: var(--op-red);
+}
+.op-col-wip-over {
+  box-shadow: inset 0 2px 0 var(--op-red);
+}
+.op-col-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+}
+.op-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.op-col-empty {
+  margin-top: 4px;
+  padding: 18px 10px;
+  border: 1px dashed var(--op-border);
+  border-radius: var(--op-radius);
+  color: var(--op-faint);
+  text-align: center;
+}
+.op-col-list:not(:empty) + .op-drop-line + .op-col-empty {
+  display: none;
+}
+.op-drop-line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 4px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--op-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 25%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.op-col-foot {
+  padding: 2px 8px 8px;
+}
+.op-root .op-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--op-radius-s);
+  color: var(--op-muted);
+}
+.op-root .op-add:hover {
+  background: var(--op-hover);
+  color: var(--text-normal);
+}
+
+/* --- cards -------------------------------------------------------------------- */
+.op-card {
+  /* Skip layout/paint work for cards scrolled out of view: keeps big columns cheap. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+  position: relative;
+  padding: 10px 12px 9px;
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius);
+  background: var(--background-primary);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-drag: element;
+  -webkit-touch-callout: none;
+  transition: border-color 0.12s, box-shadow 0.12s, background-color 0.12s;
+}
+.op-card:hover {
+  border-color: var(--background-modifier-border-hover, var(--op-border));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.op-card:focus-visible {
+  outline: 2px solid var(--op-accent);
+  outline-offset: 1px;
+}
+.op-card.op-selected {
+  border-color: var(--op-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 30%, transparent);
+}
+.op-card.op-dragging {
+  opacity: 0.35;
+}
+.op-is-dragging .op-card {
+  cursor: grabbing;
+}
+.op-card-title {
+  margin-bottom: 8px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.op-done .op-card-title {
+  color: var(--op-muted);
+}
+.op-done .op-key {
+  text-decoration: line-through;
+}
+.op-done .op-type {
+  opacity: 0.65;
+}
+.op-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.op-epic,
+.op-label {
+  max-width: 100%;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.op-epic {
+  background: hsl(var(--op-hue) 70% 50% / 0.14);
+  color: hsl(var(--op-hue) 60% 36%);
+  font-weight: 600;
+}
+.theme-dark .op-epic {
+  background: hsl(var(--op-hue) 70% 60% / 0.18);
+  color: hsl(var(--op-hue) 80% 74%);
+}
+.op-label {
+  background: var(--op-hover);
+  color: var(--op-muted);
+}
+.op-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-height: 22px;
+}
+.op-foot-left,
+.op-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.op-foot-right {
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.op-key {
+  color: var(--op-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.op-type {
+  flex: none;
+  width: var(--op-size, 16px);
+  height: var(--op-size, 16px);
+  display: inline-grid;
+  place-items: center;
+  border-radius: 4px;
+  color: #fff;
+}
+.op-type-bug {
+  background: var(--op-red);
+}
+.op-type-story {
+  background: var(--op-green);
+}
+.op-type-task {
+  background: var(--op-blue);
+}
+.op-type-epic {
+  background: var(--op-purple);
+}
+.op-prio {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+.op-prio-highest {
+  color: var(--op-red);
+}
+.op-prio-high {
+  color: var(--op-orange);
+}
+.op-prio-medium {
+  color: var(--op-yellow);
+}
+.op-prio-low {
+  color: var(--op-blue);
+}
+.op-prio-lowest {
+  color: color-mix(in srgb, var(--op-blue) 60%, var(--op-muted));
+}
+.op-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--op-hover);
+  color: var(--op-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.op-chip-ok {
+  background: color-mix(in srgb, var(--op-green) 16%, transparent);
+  color: var(--op-green);
+}
+.op-due-overdue {
+  background: color-mix(in srgb, var(--op-red) 16%, transparent);
+  color: var(--op-red);
+  font-weight: 600;
+}
+.op-due-soon {
+  background: color-mix(in srgb, var(--op-orange) 18%, transparent);
+  color: var(--op-orange);
+  font-weight: 600;
+}
+.op-estimate {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--op-hover);
+  color: var(--op-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.op-avatar {
+  flex: none;
+  width: var(--op-size, 22px);
+  height: var(--op-size, 22px);
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: hsl(var(--op-hue) 52% 46%);
+  color: #fff;
+  font-size: calc(var(--op-size, 22px) * 0.43);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.op-avatar-empty {
+  background: var(--op-hover);
+  color: var(--op-muted);
+}
+
+/* --- composer ----------------------------------------------------------------- */
+.op-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--op-accent);
+  border-radius: var(--op-radius);
+  background: var(--background-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 20%, transparent);
+}
+.op-root .op-composer-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+  font: inherit;
+  line-height: 1.4;
+  color: var(--text-normal);
+}
+.op-root .op-composer-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.op-composer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.op-composer-hint {
+  margin-top: -4px;
+  color: var(--op-faint);
+  font-size: 11px;
+}
+
+/* --- form controls ------------------------------------------------------------- */
+.op-root .op-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--op-radius-s);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  font: inherit;
+}
+.op-root select.op-input {
+  padding-right: 22px;
+  cursor: pointer;
+}
+.op-root .op-input:hover {
+  background: var(--op-hover);
+}
+.op-root .op-input:focus {
+  border-color: var(--op-accent);
+  background: var(--background-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 22%, transparent);
+}
+.op-root .op-composer-type {
+  width: auto;
+  border-color: var(--op-border);
+}
+
+/* --- drawer ------------------------------------------------------------------- */
+.op-drawer {
+  box-sizing: border-box; /* the resize handle measures the full box, border included */
+  position: relative;
+  flex: none;
+  /* --op-drawer-w is set by the resize handle; the min/max keep the board usable whatever was saved. */
+  width: var(--op-drawer-w, 420px);
+  min-width: 300px;
+  max-width: calc(100% - 260px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--op-border);
+  background: var(--background-primary);
+}
+/* Drag handle on the drawer's left edge. */
+.op-drawer-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  z-index: 3;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.op-drawer-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 0.12s;
+}
+.op-drawer-resizer:hover::after,
+.op-drawer-resizer:focus-visible::after,
+.op-resizing .op-drawer-resizer::after {
+  background: var(--op-accent);
+}
+.op-drawer-resizer:focus-visible {
+  outline: none;
+}
+.op-resizing,
+.op-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+.op-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 8px 16px;
+  border-bottom: 1px solid var(--op-border);
+}
+.op-drawer-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.op-root .op-key-btn {
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: var(--op-radius-s);
+  color: var(--op-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.op-root .op-key-btn:hover {
+  background: var(--op-hover);
+  color: var(--text-normal);
+}
+.op-root .op-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--op-radius-s);
+  color: var(--op-muted);
+}
+.op-root .op-icon-btn:hover {
+  background: var(--op-hover);
+  color: var(--text-normal);
+}
+.op-root .op-icon-btn.op-danger:hover {
+  background: color-mix(in srgb, var(--op-red) 15%, transparent);
+  color: var(--op-red);
+}
+.op-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 28px;
+}
+.op-root .op-title-input {
+  display: block;
+  width: calc(100% + 12px);
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--op-radius-s);
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text-normal);
+}
+.op-root .op-title-input:hover {
+  background: var(--op-hover);
+}
+.op-root .op-title-input:focus {
+  border-color: var(--op-accent);
+  background: var(--background-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 22%, transparent);
+}
+.op-fields {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 10px;
+  margin: 14px 0 20px;
+}
+.op-field {
+  display: contents;
+}
+.op-field-label {
+  color: var(--op-muted);
+  font-size: 12px;
+}
+.op-field-control {
+  min-width: 0;
+}
+.op-labels-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--op-radius-s);
+  cursor: text;
+}
+.op-labels-input:hover {
+  background: var(--op-hover);
+}
+.op-labels-input:focus-within {
+  border-color: var(--op-accent);
+  background: var(--background-primary);
+}
+.op-label-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 2px;
+}
+.op-root .op-label-x {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  color: var(--op-muted);
+}
+.op-root .op-label-x:hover {
+  background: color-mix(in srgb, var(--op-red) 20%, transparent);
+  color: var(--op-red);
+}
+.op-root .op-label-field {
+  flex: 1 1 70px;
+  min-width: 70px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  color: var(--text-normal);
+}
+.op-desc-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.op-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--op-muted);
+}
+.op-root .op-tab {
+  padding: 2px 8px;
+  border-radius: var(--op-radius-s);
+  color: var(--op-muted);
+  font-size: 12px;
+}
+.op-root .op-tab:hover {
+  background: var(--op-hover);
+}
+.op-root .op-tab.is-on {
+  background: var(--op-hover);
+  color: var(--text-normal);
+  font-weight: 600;
+}
+.op-root .op-desc {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius);
+  background: var(--background-primary);
+  box-shadow: none;
+  resize: none;
+  font-family: var(--font-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-normal);
+}
+.op-root .op-desc:focus {
+  border-color: var(--op-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 22%, transparent);
+}
+/* Reading mode of the description: looks like text, becomes an editor when clicked. */
+.op-preview {
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--op-radius);
+  cursor: text;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.op-preview:hover {
+  background: var(--op-hover);
+}
+.op-preview:focus-visible {
+  outline: none;
+  border-color: var(--op-accent);
+}
+.op-preview-empty {
+  color: var(--op-faint);
+}
+
+/* --- rendered Markdown inside the panel (description + comments) ----------------
+   The panel is narrow, so rendered content must (a) never widen it and (b) be panel-sized, not
+   note-sized: wide tables scroll inside themselves, media scales down, long words wrap, and the
+   note-size headings of the theme are scaled down. */
+.op-drawer-body {
+  overflow-x: hidden;
+}
+.op-root :is(.op-preview, .op-comment-body) {
+  --h1-size: 1.5em;
+  --h2-size: 1.3em;
+  --h3-size: 1.15em;
+  --h4-size: 1.05em;
+  --h5-size: 1em;
+  --h6-size: 1em;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 13.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.op-root :is(.op-preview, .op-comment-body) :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0.9em 0.35em;
+  line-height: 1.3;
+}
+.op-root :is(.op-preview, .op-comment-body) > div > :first-child {
+  margin-top: 0;
+}
+.op-root :is(.op-preview, .op-comment-body) > div > :last-child {
+  margin-bottom: 0;
+}
+.op-root :is(.op-preview, .op-comment-body) table {
+  display: block; /* lets the table scroll sideways inside itself instead of widening the panel */
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.op-root :is(.op-preview, .op-comment-body) :is(table, th, td) {
+  font-size: inherit; /* the theme gives tables note-size text; keep them panel-size like the rest */
+}
+.op-root :is(.op-preview, .op-comment-body) :is(th, td) {
+  overflow-wrap: normal;
+}
+.op-root :is(.op-preview, .op-comment-body) :is(pre, .callout, blockquote) {
+  max-width: 100%;
+}
+.op-root :is(.op-preview, .op-comment-body) pre {
+  overflow-x: auto;
+}
+.op-root :is(.op-preview, .op-comment-body) :is(img, video, canvas, svg, iframe, .internal-embed, .image-embed, .markdown-embed) {
+  max-width: 100%;
+  height: auto;
+}
+.op-times {
+  margin-top: 18px;
+  color: var(--op-faint);
+  font-size: 11.5px;
+}
+
+/* --- comments ----------------------------------------------------------------- */
+.op-comments {
+  margin-top: 24px;
+}
+.op-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 10px 0 14px;
+}
+.op-comment {
+  display: flex;
+  gap: 10px;
+}
+.op-comment-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.op-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.op-comment-author {
+  font-weight: 600;
+}
+.op-comment-time {
+  color: var(--op-faint);
+  font-size: 11.5px;
+}
+.op-root .op-comment-act {
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.op-comment:hover .op-comment-act,
+.op-comment:focus-within .op-comment-act {
+  opacity: 1;
+}
+.op-comment-body {
+  user-select: text;
+}
+.op-comment-body > :first-child {
+  margin-top: 0;
+}
+.op-comment-body > :last-child {
+  margin-bottom: 0;
+}
+.op-root .op-comment-body p,
+.op-root .op-comment-body :is(ul, ol, pre, blockquote, table) {
+  /* Obsidian's rendered-markdown theme uses page-sized margins; a thread needs them tight. */
+  margin-block: 0.35em;
+}
+.op-root .op-comment-body :is(ul, ol) {
+  padding-inline-start: 1.3em;
+}
+.op-root .op-comment-body li {
+  margin-block: 0.1em;
+}
+.op-root .op-comment-body ul.contains-task-list {
+  padding-inline-start: 0.2em;
+}
+.op-comments-empty {
+  padding: 4px 0 2px;
+  color: var(--op-faint);
+}
+.op-comment-new,
+.op-comment-editor {
+  padding: 8px;
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius);
+  background: var(--background-primary);
+}
+.op-comment-new:focus-within,
+.op-comment-editor:focus-within {
+  border-color: var(--op-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--op-accent) 20%, transparent);
+}
+.op-root .op-comment-input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 2px 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  resize: none;
+  font: inherit;
+  line-height: 1.5;
+  color: var(--text-normal);
+}
+.op-comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.op-root .op-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+@media (pointer: coarse) {
+  .op-root .op-comment-act {
+    opacity: 1;
+  }
+}
+
+/* How a comment looks inside the note itself (Obsidian callouts of type "comment"). */
+.callout[data-callout='comment'] {
+  --callout-color: 125, 130, 145;
+  --callout-icon: lucide-message-square;
+}
+
+/* --- popover (appended to <body>) ---------------------------------------------- */
+.op-pop {
+  position: fixed;
+  z-index: var(--layer-menu, 65);
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  max-width: 320px;
+  padding: 4px;
+  border: 1px solid var(--background-modifier-border-hover, var(--op-border));
+  border-radius: var(--op-radius);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-l, 0 8px 24px rgba(0, 0, 0, 0.25));
+  color: var(--text-normal);
+  overflow: hidden;
+}
+.op-pop .op-pop-search {
+  width: 100%;
+  height: 30px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius-s);
+  background: var(--background-primary);
+  box-shadow: none;
+  color: var(--text-normal);
+}
+.op-pop-list {
+  overflow-y: auto;
+}
+.op-pop .op-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--op-radius-s);
+}
+.op-pop .op-pop-item:hover,
+.op-pop .op-pop-item:focus-visible {
+  background: var(--op-hover);
+  outline: none;
+}
+.op-pop .op-pop-item.is-on {
+  font-weight: 600;
+}
+.op-pop-check {
+  flex: none;
+  width: 14px;
+  color: var(--op-accent);
+}
+.op-pop-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.op-pop-empty {
+  padding: 10px;
+  color: var(--op-faint);
+  text-align: center;
+}
+
+/* --- responsive: driven by the pane width ---------------------------------------- */
+@container oc (max-width: 900px) {
+  .op-drawer {
+    width: var(--op-drawer-w, 360px);
+  }
+}
+@container oc (max-width: 720px) {
+  .op-drawer {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 20;
+    width: min(var(--op-drawer-w, 420px), 100%);
+    min-width: 0;
+    max-width: 100%;
+    box-shadow: -10px 0 28px rgba(0, 0, 0, 0.28);
+  }
+  .op-col {
+    min-width: 240px;
+  }
+}
+/* Compact toolbar: two rows (search, then scrollable filters + icon-only toggles). */
+@container oc (max-width: 640px) {
+  .op-toolbar {
+    padding: 8px 10px;
+  }
+  .op-search {
+    flex: 1 1 100%;
+    width: auto;
+    order: -1;
+  }
+  .op-filters {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .op-spacer {
+    display: none;
+  }
+  .op-toggle-label,
+  .op-btn-label {
+    display: none;
+  }
+}
+@container oc (max-width: 520px) {
+  .op-composer-hint {
+    display: none;
+  }
+  .op-drawer {
+    width: 100%;
+  }
+  .op-drawer-resizer {
+    display: none;
+  }
+  .op-board {
+    padding: 10px;
+    scroll-snap-type: x mandatory;
+  }
+  .op-col {
+    flex: 0 0 86%;
+    max-width: none;
+    scroll-snap-align: start;
+  }
+}
+
+@media (pointer: coarse) {
+  .op-card {
+    padding: 12px 14px 11px;
+  }
+  .op-root .op-pill,
+  .op-root .op-toggle {
+    height: 34px;
+  }
+  .op-root .op-add,
+  .op-root .op-btn-primary,
+  .op-root .op-btn {
+    height: 36px;
+  }
+  .op-root .op-icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .op-root *,
+  .op-pop * {
+    transition: none !important;
+  }
+}

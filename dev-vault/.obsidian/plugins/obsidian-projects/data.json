@@ -1,0 +1,35 @@
+{
+  "board": {
+    "folder": "Cards",
+    "prefix": "OP",
+    "columns": [
+      {
+        "id": "todo",
+        "name": "To do"
+      },
+      {
+        "id": "doing",
+        "name": "In progress",
+        "wip": 4
+      },
+      {
+        "id": "review",
+        "name": "In review",
+        "wip": 3
+      },
+      {
+        "id": "done",
+        "name": "Done",
+        "done": true
+      }
+    ],
+    "hideDoneAfterDays": 14,
+    "me": "Ana",
+    "members": [
+      "Ana",
+      "Bruno",
+      "Carla",
+      "Diego"
+    ]
+  }
+}

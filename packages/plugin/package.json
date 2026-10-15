@@ -1,0 +1,12 @@
+{
+  "name": "@oprojects/plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Obsidian plugin: Jira-style card board",
+  "dependencies": {
+    "@oprojects/core": "*"
+  },
+  "devDependencies": {
+    "obsidian": "latest"
+  }
+}

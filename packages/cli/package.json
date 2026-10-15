@@ -1,0 +1,12 @@
+{
+  "name": "@oprojects/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "oprojects: manage your project board from the terminal",
+  "bin": {
+    "oprojects": "dist/oprojects.cjs"
+  },
+  "dependencies": {
+    "@oprojects/core": "*"
+  }
+}

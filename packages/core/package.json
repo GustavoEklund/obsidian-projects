@@ -1,0 +1,13 @@
+{
+  "name": "@oprojects/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Card model, storage seam and CardService shared by the Obsidian plugin, the CLI and the future MCP server",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/index.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.8.0"
+  }
+}

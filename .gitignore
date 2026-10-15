@@ -1,0 +1,11 @@
+node_modules/
+dist/
+packages/plugin/dev/harness.js
+dev-vault/.obsidian/workspace*.json
+dev-vault/.trash/
+*.log
+# built plugin copied/linked into the demo vault by `npm run install:vault -- dev-vault`
+dev-vault/.obsidian/plugins/*/main.js
+dev-vault/.obsidian/plugins/*/manifest.json
+dev-vault/.obsidian/plugins/*/styles.css
+dev-vault/.obsidian/community-plugins.json

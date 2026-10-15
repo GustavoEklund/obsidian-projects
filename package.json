@@ -1,0 +1,30 @@
+{
+  "name": "obsidian-projects",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A.I. first project management in real time: Jira-style cards for Obsidian, with a CLI and an MCP-ready core",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx scripts/seed.ts",
+    "install:vault": "node scripts/install-plugin.mjs",
+    "test:ui": "node scripts/ui-test.mjs",
+    "check": "npm run typecheck && npm test && npm run build && npm run test:ui",
+    "test:obsidian": "node scripts/e2e-obsidian.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
+    "playwright-core": "^1.64.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

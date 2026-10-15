@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cards — dev harness</title>
+    <link rel="stylesheet" href="harness.css" />
+    <link rel="stylesheet" href="../src/styles.css" />
+  </head>
+  <body class="theme-light">
+    <header class="hx-bar">
+      <strong>Projects harness</strong>
+      <label>Theme <select id="hx-theme"><option>light</option><option>dark</option></select></label>
+      <label>Language <select id="hx-lang"><option>en</option><option>pt</option></select></label>
+      <label>Pane width
+        <select id="hx-width">
+          <option value="100%">Full</option>
+          <option value="900px">900px</option>
+          <option value="720px">720px</option>
+          <option value="520px">520px</option>
+          <option value="400px">400px (phone)</option>
+        </select>
+      </label>
+      <span class="hx-note">Real BoardUI + CardService over in-memory notes. Obsidian-only parts (menu, modal, markdown) are simulated.</span>
+    </header>
+    <div id="pane" class="hx-pane"></div>
+    <script src="harness.js"></script>
+  </body>
+</html>
