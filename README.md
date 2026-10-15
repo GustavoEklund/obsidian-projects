@@ -35,6 +35,14 @@ oprojects add "Fix login" -t bug -p high --due +3d
 oprojects board
 ```
 
+### From a release
+
+Each [release](https://github.com/GustavoEklund/obsidian-projects/releases) carries `main.js`, `manifest.json` and
+`styles.css`: put them in `<vault>/.obsidian/plugins/obsidian-projects/`, reload Obsidian and enable **Projects**
+(the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin can install and update it from this repository
+too). The CLI is the single file `oprojects.cjs` (Node ≥ 20): make it executable and put it on your `PATH` as
+`oprojects`. `SHA256SUMS.txt` lists the checksums.
+
 Without `init` it works with the defaults (`Cards` folder, `OP` key). The vault is found through `--vault`,
 `$OPROJECTS_VAULT`, or by walking up the folders until a `.obsidian` is found.
 
@@ -184,6 +192,7 @@ npm test               # vitest (core, cli, the plugin's store/host)
 npm run test:ui        # browser: drags, filters, edits… on the real BoardUI (needs Chrome; CHROME=/path)
 npm run test:obsidian  # inside the real Obsidian, with a throwaway vault and profile (OBSIDIAN=/path)
 npm run dev            # rebuilds on change
+npm run version:check  # every version in the repo agrees (part of `check`)
 npm run seed           # fills ./dev-vault with 24 sample cards
 ```
 
@@ -191,6 +200,24 @@ npm run seed           # fills ./dev-vault with 24 sample cards
   and open `/dev/harness.html?theme=dark&lang=en&width=520px`. It is the same `BoardUI` on top of an in-memory `CardService`.
 - `test:obsidian` creates its own Obsidian profile (`--user-data-dir`) and talks to it over the DevTools Protocol in
   headless mode; it **does not open or change your Obsidian, your profile or your vaults**.
+
+## Versioning and releases
+
+The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html), with a single version for the plugin,
+the CLI and the core. Every change is recorded in the [CHANGELOG](CHANGELOG.md), and releases are published on
+[GitHub](https://github.com/GustavoEklund/obsidian-projects/releases) when a version tag is pushed. What counts as a
+breaking change and how a release is cut: [RELEASING.md](RELEASING.md). The project is still `0.x`: until `1.0.0`,
+breaking changes bump the minor version and are flagged in the changelog.
+
+## Contributing
+
+Bug reports and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[The Unlicense](LICENSE): this is free and unencumbered software released into the public domain. Do whatever you want
+with it. The released bundles include [`yaml`](https://github.com/eemeli/yaml) (ISC), whose notice is embedded at the
+top of `main.js` and `oprojects.cjs`.
 
 ## Known limitations
 

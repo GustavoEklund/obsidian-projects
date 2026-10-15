@@ -1,0 +1,54 @@
+name: Release
+
+# Pushing a SemVer tag (0.2.0, or 0.3.0-beta.1 for a pre-release) builds the plugin and the CLI and publishes a
+# GitHub release. The tag must equal the version in manifest.json, with no "v" prefix: that is what Obsidian and BRAT
+# expect. See RELEASING.md.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: The tag must match every version in the repo, and the CHANGELOG must describe it
+        run: npx tsx scripts/release.ts check --tag "$GITHUB_REF_NAME"
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Assemble the release assets
+        run: |
+          mkdir -p release/obsidian-projects
+          cp packages/plugin/dist/main.js packages/plugin/dist/manifest.json packages/plugin/dist/styles.css release/
+          cp packages/plugin/dist/main.js packages/plugin/dist/manifest.json packages/plugin/dist/styles.css release/obsidian-projects/
+          cp packages/cli/dist/oprojects.cjs release/
+          (cd release && zip -qr "obsidian-projects-${GITHUB_REF_NAME}.zip" obsidian-projects && rm -r obsidian-projects)
+          (cd release && sha256sum main.js manifest.json styles.css oprojects.cjs "obsidian-projects-${GITHUB_REF_NAME}.zip" > SHA256SUMS.txt)
+          npx tsx scripts/release.ts notes "$GITHUB_REF_NAME" > notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag \
+            "${flags[@]}" \
+            release/*

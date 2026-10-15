@@ -2,7 +2,15 @@
   "name": "obsidian-projects",
   "version": "0.1.0",
   "private": true,
+  "license": "Unlicense",
   "description": "A.I. first project management in real time: Jira-style cards for Obsidian, with a CLI and an MCP-ready core",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GustavoEklund/obsidian-projects.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GustavoEklund/obsidian-projects/issues"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -15,8 +23,10 @@
     "seed": "tsx scripts/seed.ts",
     "install:vault": "node scripts/install-plugin.mjs",
     "test:ui": "node scripts/ui-test.mjs",
-    "check": "npm run typecheck && npm test && npm run build && npm run test:ui",
-    "test:obsidian": "node scripts/e2e-obsidian.mjs"
+    "check": "npm run typecheck && npm test && npm run version:check && npm run build && npm run test:ui",
+    "test:obsidian": "node scripts/e2e-obsidian.mjs",
+    "version:check": "tsx scripts/release.ts check",
+    "release": "tsx scripts/release.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

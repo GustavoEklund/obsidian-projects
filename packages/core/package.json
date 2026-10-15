@@ -2,6 +2,7 @@
   "name": "@oprojects/core",
   "version": "0.1.0",
   "private": true,
+  "license": "Unlicense",
   "description": "Card model, storage seam and CardService shared by the Obsidian plugin, the CLI and the future MCP server",
   "exports": {
     ".": "./src/index.ts",

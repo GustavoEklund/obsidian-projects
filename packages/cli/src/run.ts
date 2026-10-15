@@ -22,6 +22,7 @@ import {
 } from '@oprojects/core';
 import { FsStorage, VaultNotFoundError, findVaultRoot, hasBoardConfig, loadBoardConfig, saveBoardConfig } from '@oprojects/core/node';
 import { makePainter, renderBoard, renderCard, renderTable, type Painter } from './format';
+import pkg from '../package.json';
 
 export interface IO {
   cwd: string;
@@ -35,7 +36,7 @@ export interface IO {
   openUrl: (url: string) => Promise<void>;
 }
 
-export const VERSION = '0.1.0';
+export const VERSION: string = pkg.version;
 
 type Options = NonNullable<ParseArgsConfig['options']>;
 type Values = Record<string, string | boolean | (string | boolean)[] | undefined>;

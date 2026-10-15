@@ -2,7 +2,7 @@
 //   node scripts/build.mjs            production build
 //   node scripts/build.mjs --watch    rebuild on change
 import { build, context } from 'esbuild';
-import { chmod, copyFile, mkdir } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
@@ -11,6 +11,20 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const at = (...p) => path.join(root, ...p);
 const watch = process.argv.includes('--watch');
 const prod = !watch;
+
+// The shipped bundles embed `yaml` (ISC), whose license asks that its notice travel with every copy.
+const yamlPkg = JSON.parse(await readFile(at('node_modules/yaml/package.json'), 'utf8'));
+const yamlLicense = (await readFile(at('node_modules/yaml/LICENSE'), 'utf8')).trim().split('\n');
+const legalNotice = [
+  '/*!',
+  ` * Obsidian Projects ${JSON.parse(await readFile(at('package.json'), 'utf8')).version}: released into the public domain (Unlicense).`,
+  ' * https://github.com/GustavoEklund/obsidian-projects',
+  ' *',
+  ` * This bundle includes yaml ${yamlPkg.version} (${yamlPkg.license}):`,
+  ' *',
+  ...yamlLicense.map((l) => (` * ${l}`).trimEnd()),
+  ' */',
+].join('\n');
 
 const targets = [
   {
@@ -21,7 +35,7 @@ const targets = [
       platform: 'node',
       target: 'node20',
       format: 'cjs',
-      banner: { js: '#!/usr/bin/env node' },
+      banner: { js: `#!/usr/bin/env node\n${legalNotice}` },
     },
     after: () => chmod(at('packages/cli/dist/oprojects.cjs'), 0o755),
   },
@@ -37,6 +51,7 @@ const targets = [
       minify: prod,
       sourcemap: prod ? false : 'inline',
       treeShaking: true,
+      banner: { js: legalNotice },
       logLevel: 'info',
     },
     after: async () => {

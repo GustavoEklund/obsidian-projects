@@ -2,6 +2,7 @@
   "name": "@oprojects/cli",
   "version": "0.1.0",
   "private": true,
+  "license": "Unlicense",
   "description": "oprojects: manage your project board from the terminal",
   "bin": {
     "oprojects": "dist/oprojects.cjs"
