@@ -24,11 +24,33 @@ fn read_data(dir: &Path) -> String {
     fs::read_to_string(dir.join(PLUGIN_DATA_PATH)).unwrap()
 }
 
-/// A temp dir whose path has no symlinks in it (macOS `/tmp` is one), so path comparisons are exact.
+/// A temp dir whose path has no symlinks in it (macOS `/tmp` is one), so path comparisons are exact. On Windows
+/// `canonicalize` gives the `\\?\C:\...` form, which no path the program works with has, so the path is used as it is.
 fn temp() -> (TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
+    #[cfg(not(windows))]
     let root = dir.path().canonicalize().unwrap();
+    #[cfg(windows)]
+    let root = dir.path().to_path_buf();
     (dir, root)
+}
+
+/// `to` written relative to `from`, or `None` when they do not share a root (two Windows drives).
+fn relative_path(from: &Path, to: &Path) -> Option<PathBuf> {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = to.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    if common == 0 {
+        return None;
+    }
+    let mut relative = PathBuf::new();
+    for _ in common..from.len() {
+        relative.push("..");
+    }
+    for part in &to[common..] {
+        relative.push(part.as_os_str());
+    }
+    Some(relative)
 }
 
 #[test]
@@ -49,9 +71,19 @@ mod find_vault_root_tests {
         assert_eq!(find_vault_root(Path::new("/somewhere/else"), Some(dotted.to_str().unwrap())).unwrap(), root);
         // A relative path is resolved against the working directory.
         let cwd = std::env::current_dir().unwrap();
-        let up = "../".repeat(cwd.components().count() - 1);
-        let relative = format!("{up}{}", root.strip_prefix("/").unwrap().display());
-        assert_eq!(find_vault_root(Path::new("/"), Some(&relative)).unwrap(), root);
+        match relative_path(&cwd, &root) {
+            Some(relative) => {
+                assert_eq!(find_vault_root(Path::new("/"), Some(relative.to_str().unwrap())).unwrap(), root);
+            }
+            None => eprintln!("skipped the relative path: the temp folder and the working directory share no root"),
+        }
+    }
+
+    #[test]
+    fn relative_path_helper_goes_up_and_down() {
+        assert_eq!(relative_path(Path::new("/a/b/c"), Path::new("/a/x/y")).unwrap(), Path::new("../../x/y"));
+        assert_eq!(relative_path(Path::new("/a"), Path::new("/a/b")).unwrap(), Path::new("b"));
+        assert_eq!(relative_path(Path::new("/a/b"), Path::new("/a")).unwrap(), Path::new(".."));
     }
 
     #[test]
@@ -152,9 +184,19 @@ mod find_vault_root_tests {
 
 #[test]
 fn resolve_path_is_lexical_and_absolute() {
-    assert_eq!(resolve_path(Path::new("/a/b/../c/./d")), PathBuf::from("/a/c/d"));
-    assert_eq!(resolve_path(Path::new("/a//b")), PathBuf::from("/a/b"));
-    assert_eq!(resolve_path(Path::new("/../..")), PathBuf::from("/"));
+    #[cfg(unix)]
+    {
+        assert_eq!(resolve_path(Path::new("/a/b/../c/./d")), PathBuf::from("/a/c/d"));
+        assert_eq!(resolve_path(Path::new("/a//b")), PathBuf::from("/a/b"));
+        assert_eq!(resolve_path(Path::new("/../..")), PathBuf::from("/"));
+    }
+    // On Windows a path is rooted by a drive, and `..` stops at the root.
+    #[cfg(windows)]
+    {
+        assert_eq!(resolve_path(Path::new(r"C:\a\b\..\c\.\d")), PathBuf::from(r"C:\a\c\d"));
+        assert_eq!(resolve_path(Path::new(r"C:\a\\b")), PathBuf::from(r"C:\a\b"));
+        assert_eq!(resolve_path(Path::new(r"C:\..\..")), PathBuf::from(r"C:\"));
+    }
     assert!(resolve_path(Path::new("relative")).is_absolute());
     assert!(resolve_path(Path::new("relative")).ends_with("relative"));
 }

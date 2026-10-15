@@ -392,7 +392,11 @@ impl Storage for FsStorage {
         }
         let mut handle = match OpenOptions::new().write(true).create_new(true).open(&file) {
             Ok(handle) => handle,
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => return Err(Error::FileExists(path.to_owned())),
+            // Unix says "already exists" even when the path is a folder; Windows may say "access denied" (it will not
+            // open a folder for writing), so when the open fails, ask the file system whether something is there.
+            Err(e) if e.kind() == ErrorKind::AlreadyExists || fs::symlink_metadata(&file).is_ok() => {
+                return Err(Error::FileExists(path.to_owned()));
+            }
             Err(e) => return Err(Error::io(&file, e)),
         };
         if let Err(e) = handle.write_all(content.as_bytes()) {
@@ -418,6 +422,11 @@ impl Storage for FsStorage {
     /// Moves to the vault's `.trash/` (what Obsidian's "move to Obsidian trash" does) so it is recoverable.
     fn remove(&self, path: &str) -> Result<()> {
         let file = self.abs(path)?;
+        // Removals of one note queue up. On Windows `rename` opens the source and renames the open handle, so two threads
+        // that both opened it before either finished would both succeed and the note would be moved twice: with the lock
+        // the second one finds it gone and reports `NotFound`, as on Unix.
+        let guard = NoteGuard::acquire(&file);
+        let _held = locked(&guard.lock);
         let trash = self.root.join(".trash");
         fs::create_dir_all(&trash).map_err(|e| Error::io(&trash, e))?;
         let file_name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -436,7 +445,12 @@ impl Storage for FsStorage {
             let candidate = trash.join(format!("{label}{ext}"));
             match OpenOptions::new().write(true).create_new(true).open(&candidate) {
                 Ok(_) => break candidate,
-                Err(e) if e.kind() == ErrorKind::AlreadyExists && attempt < MAX_TRASH_ATTEMPTS => attempt += 1,
+                Err(e)
+                    if (e.kind() == ErrorKind::AlreadyExists || fs::symlink_metadata(&candidate).is_ok())
+                        && attempt < MAX_TRASH_ATTEMPTS =>
+                {
+                    attempt += 1
+                }
                 Err(e) => return Err(Error::io(candidate, e)),
             }
         };

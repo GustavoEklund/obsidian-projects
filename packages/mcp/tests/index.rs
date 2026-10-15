@@ -2,7 +2,9 @@
 //! reconciliation, reading your own writes, and not reading what did not change.
 mod common;
 
-use common::vaults::{PATIENCE, eventually, make_all_old, sample_card, temp_vault, write_card, write_vault_cards};
+use common::vaults::{
+    PATIENCE, eventually, make_all_old, sample_card, temp_vault, try_write_card, write_card, write_vault_cards,
+};
 use oprojects_mcp::error::Result;
 use oprojects_mcp::index::{CardIndex, IndexOptions};
 use oprojects_mcp::service::CardSource;
@@ -698,7 +700,10 @@ fn an_index_that_was_hammered_by_creates_deletes_refreshes_and_reconciles_ends_u
                     if round % 3 == 0 {
                         let _ = fs::remove_file(root.join(&path));
                     } else {
-                        write_card(&root, &sample_card(&key, "todo", &format!("V{round:03}")));
+                        // Three threads rewrite and delete the same few files at once: on Windows an open can fail
+                        // for a moment while the file is being deleted. This test is about the index ending up equal
+                        // to whatever is on the disk, so a write that did not happen is just another outcome.
+                        let _ = try_write_card(&root, &sample_card(&key, "todo", &format!("V{round:03}")));
                     }
                     index.refresh_path(&path);
                     if round % 17 == 0 {
