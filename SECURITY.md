@@ -25,9 +25,16 @@ a new version and described in the [CHANGELOG](CHANGELOG.md); you are credited t
   `data.json`. It makes **no network requests**: neither the plugin nor the CLI contains any code that does.
 - The only other thing it launches is the CLI's `open` command, which asks your operating system to open an
   `obsidian://` link.
+- The MCP server (`oprojects-mcp`) also runs locally and makes no outgoing requests. Over **stdio** (the default) it is
+  started by your MCP client and talks to it through a pipe. With `--http` it listens on `127.0.0.1` only, there is no way
+  to bind another address, and every request needs the bearer token (compared in constant time; a generated token is
+  shown once, and a token file is created readable by you only). A request whose `Host` or `Origin` is not local is
+  refused, so a web page cannot reach the server (DNS rebinding), and the connection and body sizes are limited.
+  Anyone who holds the token can read and edit your cards: keep it like a password. `--read-only` removes every tool that
+  writes.
 - The CLI refuses paths that escape the vault, and `rm` moves a note to the vault's `.trash` instead of deleting it.
 - Notes are plain text that you and your sync tool can read: do not put secrets in cards.
 
-What is in scope: the plugin and the CLI as released, for example a crafted note or comment that makes them write
+What is in scope: the plugin, the CLI and the MCP server as released, for example a crafted note or comment that makes them write
 outside the vault, run code, or lose data. What is not: Obsidian itself, your sync tool, and the third-party code the
 bundles include ([`yaml`](https://github.com/eemeli/yaml), reported to its own maintainers).

@@ -5,13 +5,14 @@ change is recorded in the [CHANGELOG](CHANGELOG.md) ([Keep a Changelog](https://
 
 ## One version for everything
 
-The plugin, the CLI and the core library are released together, under a single version. It lives in:
+The plugin, the CLI, the core library and the MCP server are released together, under a single version. It lives in:
 
 | File | Field |
 | --- | --- |
 | `packages/plugin/manifest.json` | `version` (the one Obsidian reads; the source of truth) |
 | `package.json` and `packages/*/package.json` | `version` |
 | `package-lock.json` | `version` of the root and of each workspace |
+| `packages/mcp/Cargo.toml` and `packages/mcp/Cargo.lock` | the Rust server's `version` (`cargo build --locked` refuses a stale lock) |
 | `versions.json` | an entry `"<version>": "<minAppVersion>"` |
 
 You never edit these by hand: `npm run release` updates all of them, and `npm run version:check` (part of
@@ -71,6 +72,7 @@ Each release carries:
 | `main.js`, `manifest.json`, `styles.css` | the plugin, the three files Obsidian and [BRAT](https://github.com/TfTHacker/obsidian42-brat) install |
 | `obsidian-projects-x.y.z.zip` | the same three files in an `obsidian-projects/` folder, to unzip into `.obsidian/plugins/` |
 | `oprojects.cjs` | the CLI, a single executable file (needs Node ≥ 20) |
+| `oprojects-mcp-x.y.z-<platform>.tar.gz` / `.zip` | the MCP server, one archive per platform: Linux x64 and arm64 (static), macOS Intel and Apple Silicon, Windows x64 and arm64 |
 | `SHA256SUMS.txt` | checksums of the files above |
 
 If the workflow fails before publishing, fix the problem, then move the tag: `git push --delete origin x.y.z`,

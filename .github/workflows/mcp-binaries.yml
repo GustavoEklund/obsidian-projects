@@ -1,0 +1,96 @@
+name: MCP binaries
+
+# Builds the oprojects-mcp binary for every supported platform. The CI runs it on every push (a target that stops
+# building must be noticed at once, not on release day) and the release workflow publishes what it builds.
+# Linux binaries are static (musl), so they run on any distribution regardless of its glibc.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, archive: tar.gz, perf: true }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, archive: tar.gz }
+          - { os: macos-latest, target: aarch64-apple-darwin, archive: tar.gz }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, archive: tar.gz }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, archive: zip }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, archive: zip }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # One source of truth for the version: .tool-versions, which asdf reads locally.
+      - name: Rust toolchain
+        run: |
+          version=$(awk '$1 == "rust" { print $2 }' .tool-versions)
+          rustup toolchain install "$version" --profile minimal --target "${{ matrix.target }}"
+          rustup default "$version"
+
+      - name: musl tools
+        if: contains(matrix.target, 'linux-musl')
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/mcp/target
+          key: mcp-${{ matrix.target }}-${{ hashFiles('packages/mcp/Cargo.lock', '.tool-versions') }}
+          restore-keys: mcp-${{ matrix.target }}-
+
+      - name: Build
+        working-directory: packages/mcp
+        run: cargo build --release --locked --target "${{ matrix.target }}"
+
+      - name: The binary runs, and reports the version of the repository
+        run: |
+          suffix=""
+          if [[ "${{ matrix.target }}" == *windows* ]]; then suffix=".exe"; fi
+          bin="packages/mcp/target/${{ matrix.target }}/release/oprojects-mcp$suffix"
+          echo "BIN=$bin" >> "$GITHUB_ENV"
+          echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' packages/mcp/Cargo.toml | head -1)" >> "$GITHUB_ENV"
+          "$bin" --version
+
+      # Memory and latency budgets on the exact binary users get (musl's allocator included).
+      - uses: actions/setup-node@v7
+        if: matrix.perf
+        with:
+          node-version: 22
+          cache: npm
+      - name: Memory and latency budgets
+        if: matrix.perf
+        run: |
+          npm ci
+          npm run check:mcp-perf -- --bin "$BIN"
+
+      - name: Package
+        run: |
+          name="oprojects-mcp-${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "$BIN" LICENSE "dist/$name/"
+          cd dist
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            7z a -tzip "$name.zip" "$name" > /dev/null
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+          rm -r "$name"
+          ls -l
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mcp-${{ matrix.target }}
+          path: dist/*
+          retention-days: 14

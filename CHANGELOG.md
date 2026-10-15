@@ -8,6 +8,20 @@ are cut, is described in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **MCP server** (`oprojects-mcp`), written in Rust so that it stays small: about 5 MB of memory when idle and 11 MB with
+  2,000 cards indexed, a 3 MB binary, answers in milliseconds. Ten tools (`board_summary`, `list_cards`, `get_card`,
+  `create_card`, `update_card`, `move_card`, `delete_card`, `add_comment`, `edit_comment`, `delete_comment`) over stdio, or
+  over HTTP with `--http` (loopback only, bearer token required) to share one server between clients; `--read-only` offers
+  only the tools that read. Binaries for Linux (x64, arm64), macOS (Intel, Apple Silicon) and Windows (x64, arm64) are
+  attached to each release.
+
+### Fixed
+
+- Deleting several notes with the same name at the same time could lose one of them: the trash name was checked and then
+  renamed over, so parallel removals overwrote each other.
+
 ## [0.1.0] - 2026-10-15
 
 First release. While the version is `0.x`, anything may change between minor versions; breaking changes are

@@ -2,7 +2,8 @@
 
 **A.I. first project management in real time.**
 
-A Jira-style card board inside Obsidian, with a CLI (`oprojects`) and a core built to get an MCP server next.
+A Jira-style card board inside Obsidian, with a CLI (`oprojects`) and an MCP server (`oprojects-mcp`) so that AI agents can
+work on the same board.
 Everything runs locally. **Every card is a Markdown note** with frontmatter: searchable, linkable (`[[OP-12]]`),
 versionable and editable by hand. Changes made from anywhere (the board, the CLI, an agent, a sync client) show up
 live on the open board.
@@ -128,39 +129,100 @@ oprojects init | config
 Global options in any position: `--vault <path>`, `--json`, `--no-color`. Dates accept `today`, `tomorrow`, `+3d`, `+2w`.
 Exit codes: `0` ok · `1` validation/not-found error · `2` incorrect usage. With `--json` the output is stable for scripts.
 
-## Architecture (and where the MCP fits)
+## MCP server
+
+`oprojects-mcp` lets an AI agent (Claude Code, Claude Desktop, Cursor, any MCP client) work on your board: list and
+filter cards, read one with its comments, create, update, move, comment, delete. It is written in Rust, runs locally and
+is built to be small: **about 5 MB of memory when idle, 11 MB with 2,000 cards indexed, a 3 MB binary**, and it answers
+in milliseconds. What it changes shows up live on an open board, and the other way round.
+
+### Install
+
+Download the archive for your platform from the [latest release](https://github.com/GustavoEklund/obsidian-projects/releases/latest)
+(`oprojects-mcp-<version>-<platform>`: Linux x64 and arm64, both static; macOS Intel and Apple Silicon; Windows x64 and arm64),
+unpack it and put `oprojects-mcp` on your `PATH`. On macOS the binary is not signed: run
+`xattr -d com.apple.quarantine oprojects-mcp` once. To build it yourself, run `asdf install` (Rust comes from
+`.tool-versions`) and `npm run build -w packages/mcp`; the binary is `packages/mcp/target/release/oprojects-mcp`.
+
+### Connect an agent
+
+```bash
+claude mcp add obsidian-projects -- oprojects-mcp --vault "/path/to/your/vault"
+```
+
+For a client that reads a JSON configuration (Claude Desktop, Cursor):
+
+```json
+{ "mcpServers": { "obsidian-projects": { "command": "oprojects-mcp", "args": ["--vault", "/path/to/your/vault"] } } }
+```
+
+Without `--vault` it uses `$OPROJECTS_VAULT`, or the nearest folder above the current one that has an `.obsidian` folder.
+`oprojects-mcp --help` prints these commands.
+
+### Tools
+
+| Tool | What it does |
+| --- | --- |
+| `board_summary` | Cards per column, WIP limits, overdue and unassigned counts. A good first call. |
+| `list_cards` | Cards in board order. Filters: `status`, `type`, `priority`, `assignee` (`me`, `none` or names), `labels`, `parent`, `text`, `include_archived`; `limit` (default 50, at most 200). |
+| `get_card` | One card with its description and comments (with their ids). |
+| `create_card` | A new card at the bottom of a column. `title` is required; `due` accepts `YYYY-MM-DD`, `today`, `tomorrow`, `+3d`, `+2w`. |
+| `update_card` | Changes fields; an omitted field is kept, `null` clears `assignee`, `due`, `estimate` or `parent`. |
+| `move_card` | Moves a card to a column (id or name), optionally before or after another card. |
+| `delete_card` | Moves the note to the vault's `.trash` (recoverable). |
+| `add_comment`, `edit_comment`, `delete_comment` | A thread per card. Comments are signed with `author`, else `--author`, else "Agent". |
+
+Answers are compact text, one line per card, because what the agent reads costs context. A mistake comes back as a tool
+error that says what would be valid (for example the columns of the board), so the agent can correct itself.
+
+### Options
+
+| Option | |
+| --- | --- |
+| `--vault <path>` | The vault to serve. |
+| `--read-only` | Registers only the three tools that read: the agent cannot change anything. |
+| `--author <name>` | Signs the comments the agent adds ($`OPROJECTS_AUTHOR`; default "Agent"). |
+| `--http` | Serves over HTTP instead of stdin/stdout, so one server can be shared by several clients (below). |
+| `--port <n>` | With `--http`: the port (default 8765; `0` picks a free one). |
+| `--token <secret>`, `--token-file <path>` | With `--http`: the bearer token ($`OPROJECTS_MCP_TOKEN`). |
+
+`OPROJECTS_LOG=debug` prints diagnostics on stderr; a healthy server is silent.
+
+### One server for several clients (HTTP)
+
+```bash
+oprojects-mcp --http --token-file ~/.config/oprojects-mcp.token --vault "/path/to/your/vault"
+claude mcp add --transport http obsidian-projects http://127.0.0.1:8765/mcp \
+  --header "Authorization: Bearer $(cat ~/.config/oprojects-mcp.token)"
+```
+
+It listens on `127.0.0.1` only and requires the token on every request (compared in constant time). Requests whose `Host`
+or `Origin` is not local are refused, which stops a web page from reaching it (DNS rebinding). With no token it generates
+one and prints it once. The details are in [SECURITY.md](SECURITY.md) and
+[packages/mcp/DESIGN.md](packages/mcp/DESIGN.md).
+
+### How it stays faithful to the plugin and the CLI
+
+The three read and write the same notes, so they must agree on every format. `packages/core` (TypeScript) is the
+reference implementation; `packages/mcp` is a port of it, proved against a corpus of about 9,000 cases generated from the
+TypeScript code (`npm run conformance`). CI fails if the corpus is stale, so a behavior change in the TypeScript core
+cannot land without the Rust server being made to match. Notes written by one are read back by the other in the tests.
+
+## Architecture
 
 ```
 packages/
-  core/     card model, YAML, ranking, filters and CardService — no Obsidian, no DOM
+  core/     card model, YAML, ranking, filters and CardService: no Obsidian, no DOM (the reference implementation)
   cli/      oprojects: a thin layer over CardService (fs)
   plugin/   Obsidian plugin; ui/ does not import 'obsidian' (testable in a browser)
-  mcp/      (future) same idea as cli
+  mcp/      oprojects-mcp (Rust): the MCP server, a port of core proved against a conformance corpus
 ```
 
 The seam is the `Storage` interface (`packages/core/src/storage.ts`): `CardService` holds all the logic
 (keys, ranking, validation, `resolved`, filters) and only asks for “list/read/create/modify/remove a file”.
-There are two adapters today — `FsStorage` (CLI) and `ObsidianStorage` (plugin, uses `Vault.process`, atomic) — plus a
-third one for tests (`MemoryStorage`).
-
-**Status:** the CLI is the agent-facing interface today (scriptable, stable `--json` output, every write shows up live on
-the board). The MCP server is planned and not implemented yet.
-
-**To add the MCP**, create `packages/mcp` and map the tools straight onto the service:
-
-| Tool | Call |
-| --- | --- |
-| `list_cards` | `svc.find(query)` — accepts `me`, `none`, column names, `includeArchived` |
-| `get_card` | `svc.get(key)` |
-| `create_card` / `update_card` | `svc.create(input)` / `svc.update(key, patch)` (`null` clears a field) |
-| `add_comment` / `edit_comment` / `delete_comment` | `svc.addComment(key, { text, author })` / `svc.editComment(key, id, text)` / `svc.removeComment(key, id)` — the agent passes its own `author` (e.g. "Claude") |
-| `move_card` | `svc.move(key, column, { before?, after? })` |
-| `delete_card` | `svc.remove(key)` |
-| `board_summary` | `groupByColumn(await svc.list(), svc.config)` |
-
-Build the service the way the CLI does: `findVaultRoot` → `loadBoardConfig` → `new CardService(new FsStorage(root), config)`
-(`@oprojects/core/node`). The `ValidationError`/`NotFoundError` errors already carry a useful message (they list the valid
-columns, etc.) and work as the tool's error result. MCP writes show up live on an open board (the plugin watches the vault).
+There are two adapters in TypeScript, `FsStorage` (CLI) and `ObsidianStorage` (plugin, which uses `Vault.process`, atomic),
+plus `MemoryStorage` for tests. The Rust server has the same shape: a `Storage` trait, `FsStorage`, and the same
+`CardService`, with an in-memory index of the cards that file-system events keep current.
 
 ## Performance
 
@@ -184,6 +246,25 @@ CLI with 2,000 notes on disk: `show` 0.04 s · `ls/board/add/move` ~0.45 s (they
 If your vault grows past a few thousand cards, the next win is reading the frontmatter from Obsidian's `metadataCache`
 instead of re-parsing every note on startup.
 
+The MCP server is a long-lived process, so it keeps its own in-memory index (built in the background, so it is ready
+to answer at once, and kept current by file-system events) and reads a single card from its note, so a read is always
+fresh. Measured with the release binary on a vault of 2,000 realistic notes (`npm run check:mcp-perf`, which fails CI above
+its budgets):
+
+| | Result |
+| --- | --- |
+| Memory, idle | ~5 MB |
+| Memory, 2,000 cards indexed | ~11 MB (about 16 MB with 5,000) |
+| Time to `initialize` | ~7 ms |
+| Index load, 2,000 notes | ~60 ms |
+| Read tools (list, get, summary) | p95 ~1 ms |
+| Text search over every description and comment | p95 ~3 ms |
+| Writes (create, update, move, comment) | p95 ~2 ms |
+| Memory growth over 240 writes | ~0.6 MB |
+
+An idle Node.js process alone uses 42 MB, and a TypeScript MCP server built on the official SDK uses 66 MB: that gap
+is why the server is written in Rust.
+
 ## Development
 
 ```bash
@@ -199,10 +280,18 @@ npm run test:smoke     # runs the built CLI as a real process against a throwawa
 npm run dev            # rebuilds on change
 npm run version:check  # every version in the repo agrees (part of `check`)
 npm run seed           # fills ./dev-vault with 24 sample cards
+
+npm run check:mcp      # the Rust server: fmt, clippy, tests, release build, process tests, memory/latency budgets
+npm run check:all      # `check` and `check:mcp`
+npm run conformance    # regenerate the corpus that the Rust server is tested against, from the TypeScript core
 ```
 
 - **Browser harness**: after `npm run build`, serve `packages/plugin` (`python3 -m http.server -d packages/plugin`)
   and open `/dev/harness.html?theme=dark&lang=en&width=520px`. It is the same `BoardUI` on top of an in-memory `CardService`.
+- **The Rust server** needs the toolchain pinned in `.tool-versions` (`asdf install` reads it; CI installs the same version
+  with `rustup`). Its tests include a corpus generated from `packages/core`: when you change behavior there, run
+  `npm run conformance`, commit the result, and make `cargo test` pass. `npm run conformance:check` (a CI gate) fails
+  when the corpus is stale.
 - `test:obsidian` creates its own Obsidian profile (`--user-data-dir`) and talks to it over the DevTools Protocol in
   headless mode; it **does not open or change your Obsidian, your profile or your vaults**.
 
@@ -233,6 +322,10 @@ top of `main.js` and `oprojects.cjs`.
   Changing the configuration through the CLI while the plugin is open is not detected; changing it in the plugin's settings is (the CLI reads the same file).
 - Creating two cards at the same time (plugin + CLI) is safe: the colliding key is dropped and the next one is used.
   Simultaneous edits to the **same** card have no conflict resolution (last write wins).
+- The MCP server serves one vault, and its notion of "today" (for `due: today`) and the time shown in a comment's title
+  use the time zone the server started in; a server left running across a daylight-saving change keeps the old offset
+  until it restarts. Two *processes* editing the very same note at the same instant can still lose one of the edits
+  (neither the plugin, the CLI nor the server holds a cross-process lock); creating cards at the same time is safe.
 - The plugin uses only the Obsidian API (no Node) but **has not been tested on a phone**; dragging uses HTML5 DnD
   (on touch, use the context menu or `Alt+arrows`).
 - When you remove a column in the settings, its cards appear in the first column (the notes do not change).

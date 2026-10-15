@@ -13,7 +13,11 @@ permissions:
   contents: write
 
 jobs:
+  mcp-binaries:
+    uses: ./.github/workflows/mcp-binaries.yml
+
   release:
+    needs: mcp-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -33,14 +37,21 @@ jobs:
       - run: npm run check:bundle
       - run: npm run test:smoke
 
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mcp-*
+          merge-multiple: true
+          path: mcp-binaries
+
       - name: Assemble the release assets
         run: |
           mkdir -p release/obsidian-projects
           cp packages/plugin/dist/main.js packages/plugin/dist/manifest.json packages/plugin/dist/styles.css release/
           cp packages/plugin/dist/main.js packages/plugin/dist/manifest.json packages/plugin/dist/styles.css release/obsidian-projects/
           cp packages/cli/dist/oprojects.cjs release/
+          cp mcp-binaries/* release/
           (cd release && zip -qr "obsidian-projects-${GITHUB_REF_NAME}.zip" obsidian-projects && rm -r obsidian-projects)
-          (cd release && sha256sum main.js manifest.json styles.css oprojects.cjs "obsidian-projects-${GITHUB_REF_NAME}.zip" > SHA256SUMS.txt)
+          (cd release && sha256sum main.js manifest.json styles.css oprojects.cjs "obsidian-projects-${GITHUB_REF_NAME}.zip" oprojects-mcp-* > SHA256SUMS.txt)
           npx tsx scripts/release.ts notes "$GITHUB_REF_NAME" > notes.md
 
       - name: Publish the release

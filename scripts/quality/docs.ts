@@ -114,6 +114,10 @@ export function mentionedPaths(md: string): Link[] {
   return found;
 }
 
+/** Folders that only exist after a build: docs may name files in them (`packages/mcp/target/release/oprojects-mcp`). */
+export const isBuildOutput = (repoPath: string): boolean =>
+  /(^|\/)(target|dist|coverage|node_modules)(\/|$)/.test(repoPath);
+
 /** Paths the docs mention on purpose before they exist (planned work). */
 export const PLANNED_PATHS: ReadonlySet<string> = new Set([]);
 
@@ -278,7 +282,8 @@ export async function checkRepo(): Promise<string[]> {
     if (md === null) continue;
     problems.push(...checkLinks(file, md, (p) => readText(p), linkExists));
     for (const { target, line } of mentionedPaths(md)) {
-      if (!pathExists(target)) problems.push(`${file}:${line}: mentions \`${target}\`, which does not exist`);
+      if (!isBuildOutput(target) && !pathExists(target))
+        problems.push(`${file}:${line}: mentions \`${target}\`, which does not exist`);
     }
     for (const { target, line } of npmScriptsMentioned(md))
       if (!scripts.has(target))

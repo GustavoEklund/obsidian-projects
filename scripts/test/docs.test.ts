@@ -7,6 +7,7 @@ import {
   checkRepo,
   commandsFromHelp,
   headingSlugs,
+  isBuildOutput,
   markdownLinks,
   mentionedPaths,
   npmScriptsMentioned,
@@ -124,6 +125,30 @@ describe('mentionedPaths', () => {
 
   it('ignores other inline code, and fenced blocks', () => {
     expect(mentionedPaths('`npm test` and `src/x.ts`\n```\n`packages/a`\n```')).toEqual([]);
+  });
+});
+
+describe('isBuildOutput', () => {
+  it('recognises files that only exist after a build', () => {
+    for (const p of [
+      'packages/mcp/target/release/oprojects-mcp',
+      'packages/plugin/dist/main.js',
+      'coverage/lcov.info',
+      'node_modules/x',
+    ]) {
+      expect(isBuildOutput(p), p).toBe(true);
+    }
+  });
+
+  it('does not excuse a missing source file or a lookalike name', () => {
+    for (const p of [
+      'packages/mcp/src/x.rs',
+      'packages/core/src/targets.ts',
+      'scripts/distribute.ts',
+      'docs/target-audience.md',
+    ]) {
+      expect(isBuildOutput(p), p).toBe(false);
+    }
   });
 });
 
