@@ -6,7 +6,13 @@
     "suspicious": "error",
     "perf": "error"
   },
-  "ignorePatterns": ["**/dist/**", "coverage/**", "dev-vault/**", "packages/plugin/dev/harness.js"],
+  "ignorePatterns": [
+    "**/dist/**",
+    "coverage/**",
+    "dev-vault/**",
+    "packages/plugin/dev/harness.js",
+    "packages/mcp/target/**"
+  ],
   "rules": {
     // The plugin and the core stay quiet: nothing is logged to the user's developer console by accident.
     // (Scripts, the CLI and tests print on purpose; see the override below.)

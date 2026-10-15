@@ -115,7 +115,7 @@ export function mentionedPaths(md: string): Link[] {
 }
 
 /** Paths the docs mention on purpose before they exist (planned work). */
-export const PLANNED_PATHS: ReadonlySet<string> = new Set(['packages/mcp']);
+export const PLANNED_PATHS: ReadonlySet<string> = new Set([]);
 
 // --- npm scripts -----------------------------------------------------------------------------------------------
 

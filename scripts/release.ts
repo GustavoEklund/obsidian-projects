@@ -9,15 +9,31 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
-import { bump, compareVersions, extractNotes, problems, promoteUnreleased, type RepoVersions } from './release-lib';
+import {
+  bump,
+  cargoLockVersion,
+  cargoTomlVersion,
+  compareVersions,
+  extractNotes,
+  problems,
+  promoteUnreleased,
+  setCargoLockVersion,
+  setCargoTomlVersion,
+  type RepoVersions,
+} from './release-lib';
 
 const PACKAGE_FILES = [
   'package.json',
   'packages/core/package.json',
   'packages/cli/package.json',
   'packages/plugin/package.json',
+  'packages/mcp/package.json',
 ];
-const LOCK_PATHS = ['', 'packages/core', 'packages/cli', 'packages/plugin'];
+const LOCK_PATHS = ['', 'packages/core', 'packages/cli', 'packages/plugin', 'packages/mcp'];
+// The Rust MCP server carries the same version as everything else, in its Cargo.toml and in its Cargo.lock.
+const CARGO_TOML = 'packages/mcp/Cargo.toml';
+const CARGO_LOCK = 'packages/mcp/Cargo.lock';
+const CRATE = 'oprojects-mcp';
 const USAGE =
   'Usage: release.ts check [--tag <tag>] | notes <version> | <major|minor|patch|x.y.z> [--dry-run] [--no-git]';
 
@@ -56,6 +72,10 @@ export function main(argv: string[], root: string, out: Output, today: () => Dat
       manifest: readJson('packages/plugin/manifest.json'),
       versions: readJson('versions.json'),
       lock: Object.fromEntries(LOCK_PATHS.map((p) => [p, lock.packages?.[p]?.version as string | undefined])),
+      cargo: {
+        [CARGO_TOML]: cargoTomlVersion(readFileSync(at(CARGO_TOML), 'utf8')),
+        [`${CARGO_LOCK} (${CRATE})`]: cargoLockVersion(readFileSync(at(CARGO_LOCK), 'utf8'), CRATE),
+      },
       changelog: readFileSync(at('CHANGELOG.md'), 'utf8'),
     };
   };
@@ -144,6 +164,8 @@ function bumpCommand(
   lock.version = next;
   for (const p of LOCK_PATHS) if (lock.packages?.[p]) lock.packages[p].version = next;
   env.writeJson('package-lock.json', lock);
+  writeFileSync(env.at(CARGO_TOML), setCargoTomlVersion(readFileSync(env.at(CARGO_TOML), 'utf8'), next));
+  writeFileSync(env.at(CARGO_LOCK), setCargoLockVersion(readFileSync(env.at(CARGO_LOCK), 'utf8'), CRATE, next));
   writeFileSync(env.at('CHANGELOG.md'), changelog);
   report(problems(load(), { requireChangelog: true })); // belt and braces: what we just wrote must pass the check
 
@@ -154,6 +176,8 @@ function bumpCommand(
       'packages/plugin/manifest.json',
       'versions.json',
       'package-lock.json',
+      CARGO_TOML,
+      CARGO_LOCK,
       'CHANGELOG.md',
     );
     env.git('commit', '-m', `Release ${next}`);

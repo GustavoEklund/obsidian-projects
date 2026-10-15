@@ -1,0 +1,14 @@
+{
+  "name": "@oprojects/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Unlicense",
+  "description": "MCP server for Obsidian Projects (Rust). This package.json only wires the crate into the npm workspace and the single version scheme.",
+  "scripts": {
+    "build": "cargo build --release --locked",
+    "test": "cargo test --locked",
+    "lint": "cargo clippy --all-targets --locked -- -D warnings",
+    "format": "cargo fmt",
+    "format:check": "cargo fmt --check"
+  }
+}

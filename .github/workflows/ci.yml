@@ -40,6 +40,8 @@ jobs:
         run: npm run check:docs
       - name: Every version in the repo agrees
         run: npm run version:check
+      - name: The conformance corpus is up to date (the Rust server is tested against it)
+        run: npm run conformance:check
 
   unit:
     name: Unit tests, Node ${{ matrix.node }}
@@ -113,6 +115,38 @@ jobs:
         env:
           OBSIDIAN: ${{ runner.temp }}/obsidian/obsidian-${{ env.OBSIDIAN_VERSION }}/obsidian
 
+  mcp:
+    name: Rust MCP server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # One source of truth for the version: .tool-versions, which asdf reads locally.
+      - name: Rust toolchain
+        run: |
+          version=$(awk '$1 == "rust" { print $2 }' .tool-versions)
+          rustup toolchain install "$version" --profile minimal --component rustfmt --component clippy
+          rustup default "$version"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/mcp/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('packages/mcp/Cargo.lock', '.tool-versions') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - name: Formatting
+        working-directory: packages/mcp
+        run: cargo fmt --check
+      - name: Lint
+        working-directory: packages/mcp
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Tests (including the conformance corpus generated from the TypeScript core)
+        working-directory: packages/mcp
+        run: cargo test --locked
+      - name: Release build
+        working-directory: packages/mcp
+        run: cargo build --release --locked
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
@@ -132,7 +166,7 @@ jobs:
   gate:
     name: All gates
     if: always()
-    needs: [static, unit, build, obsidian, audit]
+    needs: [static, unit, build, obsidian, mcp, audit]
     runs-on: ubuntu-latest
     steps:
       - name: Every gate passed

@@ -10,3 +10,4 @@ dev-vault/.obsidian/plugins/*/manifest.json
 dev-vault/.obsidian/plugins/*/styles.css
 dev-vault/.obsidian/community-plugins.json
 coverage/
+target/

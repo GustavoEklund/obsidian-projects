@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   bump,
+  cargoLockVersion,
+  cargoTomlVersion,
   compareVersions,
   extractNotes,
   parseVersion,
   problems,
   promoteUnreleased,
+  setCargoLockVersion,
+  setCargoTomlVersion,
   unreleasedNotes,
   type RepoVersions,
 } from '../release-lib';
@@ -174,5 +178,59 @@ describe('problems', () => {
     const r = consistent();
     r.manifest.version = 'v1';
     expect(problems(r)[0]).toContain('not a valid SemVer');
+  });
+});
+
+describe('Cargo files', () => {
+  const toml = `[package]\nname = "oprojects-mcp"\nversion = "0.1.0"\ndescription = "has [brackets] and version = \\"9\\" inside"\n\n[dependencies]\nserde = { version = "1.0.2" }\n`;
+  const lock = `version = 4\n\n[[package]]\nname = "serde"\nversion = "1.0.2"\n\n[[package]]\nname = "oprojects-mcp"\nversion = "0.1.0"\n\n[[package]]\nname = "oprojects-mcp-extra"\nversion = "7.7.7"\n`;
+
+  it('reads the [package] version of a Cargo.toml, not a dependency version', () => {
+    expect(cargoTomlVersion(toml)).toBe('0.1.0');
+    expect(cargoTomlVersion('[dependencies]\nserde = "1"\n')).toBeUndefined();
+  });
+
+  it('changes only the [package] version', () => {
+    const next = setCargoTomlVersion(toml, '0.2.0');
+    expect(next).toBe(toml.replace('version = "0.1.0"', 'version = "0.2.0"'));
+    expect(cargoTomlVersion(next)).toBe('0.2.0');
+    expect(next).toContain('serde = { version = "1.0.2" }');
+  });
+
+  it('finds the version even when other tables or lines come first, and with CRLF line endings', () => {
+    expect(cargoTomlVersion('[package]\r\nname = "x"\r\n\r\nversion = "3.2.1"\r\n')).toBe('3.2.1');
+    expect(cargoTomlVersion('[package]\n# a comment with [brackets]\nname = "x"\nversion = "3.2.1"\n')).toBe('3.2.1');
+  });
+
+  it('refuses to edit a Cargo.toml without a package version', () => {
+    expect(() => setCargoTomlVersion('[workspace]\nmembers = []\n', '1.0.0')).toThrow('no [package] version');
+  });
+
+  it('reads and sets the entry of one crate in a Cargo.lock, never a similarly named one', () => {
+    expect(cargoLockVersion(lock, 'oprojects-mcp')).toBe('0.1.0');
+    expect(cargoLockVersion(lock, 'oprojects-mcp-extra')).toBe('7.7.7');
+    expect(cargoLockVersion(lock, 'missing')).toBeUndefined();
+    const next = setCargoLockVersion(lock, 'oprojects-mcp', '0.2.0');
+    expect(cargoLockVersion(next, 'oprojects-mcp')).toBe('0.2.0');
+    expect(cargoLockVersion(next, 'oprojects-mcp-extra')).toBe('7.7.7');
+    expect(cargoLockVersion(next, 'serde')).toBe('1.0.2');
+  });
+
+  it('refuses to edit a Cargo.lock that does not list the crate', () => {
+    expect(() => setCargoLockVersion(lock, 'nope', '1.0.0')).toThrow('no entry for nope');
+  });
+
+  it('treats a Cargo version that disagrees with the manifest as a problem, by label', () => {
+    const r: RepoVersions = {
+      packages: {},
+      manifest: { version: '0.2.0', minAppVersion: '1.8.0' },
+      versions: { '0.2.0': '1.8.0' },
+      lock: {},
+      cargo: { 'packages/mcp/Cargo.toml': '0.2.0', 'packages/mcp/Cargo.lock (oprojects-mcp)': '0.1.0' },
+      changelog: '',
+    };
+    expect(problems(r)).toEqual([
+      'packages/mcp/Cargo.lock (oprojects-mcp): version is 0.1.0, manifest.json says 0.2.0',
+    ]);
   });
 });

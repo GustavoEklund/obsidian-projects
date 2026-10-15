@@ -1,0 +1,5 @@
+{"description":"Constants the Rust crate must mirror: priorities, card types and the default board config.","cases":[
+  {"id":"priorities","input":null,"expected":["highest","high","medium","low","lowest"]},
+  {"id":"card-types","input":null,"expected":["task","story","bug","epic"]},
+  {"id":"default-config","input":null,"expected":{"folder":"Cards","prefix":"OP","columns":[{"id":"todo","name":"To Do"},{"id":"doing","name":"In Progress"},{"id":"review","name":"Review"},{"id":"done","name":"Done","done":true}],"hideDoneAfterDays":14,"me":"","members":[]}}
+]}

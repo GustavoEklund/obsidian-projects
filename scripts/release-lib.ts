@@ -81,6 +81,8 @@ export interface RepoVersions {
   versions: Record<string, string>;
   /** `version` of the root and each workspace entry in package-lock.json, keyed by lock path. */
   lock: Record<string, string | undefined>;
+  /** The Rust crate's version in Cargo.toml and in Cargo.lock, keyed by a label such as `packages/mcp/Cargo.toml`. */
+  cargo?: Record<string, string | undefined>;
   changelog: string;
 }
 
@@ -95,6 +97,8 @@ export function problems(r: RepoVersions, opts: { tag?: string; requireChangelog
   for (const [path, v] of Object.entries(r.lock))
     if (v !== version)
       out.push(`package-lock.json (${path || 'root'}): version is ${v ?? 'missing'}, manifest.json says ${version}`);
+  for (const [label, v] of Object.entries(r.cargo ?? {}))
+    if (v !== version) out.push(`${label}: version is ${v ?? 'missing'}, manifest.json says ${version}`);
 
   if (!r.manifest.minAppVersion) out.push('manifest.json: minAppVersion is missing');
   else if (r.versions[version] !== r.manifest.minAppVersion)
@@ -111,6 +115,37 @@ export function problems(r: RepoVersions, opts: { tag?: string; requireChangelog
   if (opts.requireChangelog && extractNotes(r.changelog, version) === null)
     out.push(`CHANGELOG.md has no filled-in "## [${version}]" section`);
   return out;
+}
+
+// --- Cargo files ---------------------------------------------------------------------------------------------------
+
+const CARGO_PACKAGE_VERSION_RE = /(^\[package\]\r?\n(?:[^[\r\n][^\r\n]*\r?\n|\r?\n)*?version\s*=\s*")([^"]*)(")/m;
+
+/** The `version` of the `[package]` table in a Cargo.toml, or undefined. */
+export function cargoTomlVersion(toml: string): string | undefined {
+  return CARGO_PACKAGE_VERSION_RE.exec(toml)?.[2];
+}
+
+/** Cargo.toml with the `[package]` version replaced (nothing else touched). */
+export function setCargoTomlVersion(toml: string, version: string): string {
+  if (!CARGO_PACKAGE_VERSION_RE.test(toml)) throw new Error('Cargo.toml has no [package] version to update');
+  return toml.replace(CARGO_PACKAGE_VERSION_RE, `$1${version}$3`);
+}
+
+const lockEntryRe = (crate: string) =>
+  new RegExp(
+    `(\\[\\[package\\]\\]\\r?\\nname = "${crate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"\\r?\\nversion = ")([^"]*)(")`,
+  );
+
+/** The version of `crate` in a Cargo.lock, or undefined when it is not listed. */
+export function cargoLockVersion(lock: string, crate: string): string | undefined {
+  return lockEntryRe(crate).exec(lock)?.[2];
+}
+
+/** Cargo.lock with the entry of `crate` set to `version`. `cargo build --locked` would refuse a stale lock. */
+export function setCargoLockVersion(lock: string, crate: string, version: string): string {
+  if (!lockEntryRe(crate).test(lock)) throw new Error(`Cargo.lock has no entry for ${crate} to update`);
+  return lock.replace(lockEntryRe(crate), `$1${version}$3`);
 }
 
 // --- changelog -------------------------------------------------------------------------------------------

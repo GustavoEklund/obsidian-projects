@@ -1,0 +1,39 @@
+[package]
+name = "oprojects-mcp"
+version = "0.1.0"
+edition = "2024"
+description = "MCP server for Obsidian Projects: a small, fast, local server over the vault's card notes"
+license = "Unlicense"
+repository = "https://github.com/GustavoEklund/obsidian-projects"
+publish = false
+
+[lib]
+name = "oprojects_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "oprojects-mcp"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+rmcp = { version = "3.5", features = ["server", "transport-io"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "macros", "io-std"] }
+
+# The whole point of this server is a tiny memory footprint and instant startup, so the release build is tuned for both.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

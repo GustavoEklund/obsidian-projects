@@ -12,6 +12,7 @@
     "packages/plugin/dev/harness.js",
     "docs/screenshots/**",
     "LICENSE",
-    "**/*.md"
+    "**/*.md",
+    "packages/mcp/tests/fixtures/**"
   ]
 }
