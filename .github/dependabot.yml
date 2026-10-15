@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # jsdom 30 needs a newer Node than 20.x (its undici calls webidl.util.markAsUncloneable), and the unit tests
+      # also run on Node 20. Revisit when Node 20 leaves the CI matrix.
+      - dependency-name: jsdom
+        update-types: ['version-update:semver-major']
     groups:
       dev-tools:
         dependency-type: development

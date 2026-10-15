@@ -14,7 +14,7 @@ Open an issue with:
 - if a card is involved, the text of its note (frontmatter included), with anything private removed;
 - for the CLI, the command you ran and its output with `--json`.
 
-For anything security-sensitive, do not open a public issue: contact the maintainer through GitHub instead.
+For anything security-sensitive, do not open a public issue: follow [SECURITY.md](SECURITY.md) and report it privately.
 
 ## Getting set up
 
