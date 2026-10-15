@@ -320,10 +320,12 @@ impl Shared {
     }
 
     /// Lists the cards folder with stamps and brings the index in line with it, reading only what differs.
-    fn reconcile(&self) {
+    /// Brings the index in line with the disk. Returns `false` when the folder could not be listed: then nothing was
+    /// changed (a failed listing must never empty the index), and the caller should try again soon.
+    fn reconcile(&self) -> bool {
         let started = self.tickets.load(Ordering::SeqCst);
         let Ok(listing) = self.storage.list_stamped(&self.config.folder) else {
-            return;
+            return false;
         };
         let wanted: Vec<(String, Option<Stamp>)>;
         let gone: Vec<String>;
@@ -350,6 +352,11 @@ impl Shared {
         let mut state = locked(&self.state);
         state.reconciles += 1;
         state.removed.retain(|_, ticket| *ticket > started);
+        true
+    }
+
+    fn has_notes(&self) -> bool {
+        !locked(&self.state).entries.is_empty()
     }
 
     fn finish_first_load(&self) {
@@ -383,7 +390,9 @@ fn relative_note(path: &Path, roots: &[PathBuf], folder: &str) -> Option<String>
 const FOLDER_CHECK_EVERY: Duration = Duration::from_secs(1);
 
 fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOptions, mut watching: Option<Watching>) {
-    shared.reconcile(); // the first load
+    // A listing that fails (a folder that is being deleted, a disk error) is tried again at the next tick, not at the next
+    // reconciliation, which may be an hour away.
+    let mut listing_failed = !shared.reconcile(); // the first load
     shared.finish_first_load();
 
     let mut pending: HashSet<String> = HashSet::new();
@@ -397,7 +406,8 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
             options.debounce
         } else {
             // Without a watcher there is no folder to follow: only the reconciliation has to wake the thread.
-            let due = if watching.is_some() { next_reconcile.min(next_check) } else { next_reconcile };
+            let due =
+                if watching.is_some() || listing_failed { next_reconcile.min(next_check) } else { next_reconcile };
             due.saturating_duration_since(Instant::now())
         };
         match receiver.recv_timeout(wait) {
@@ -411,7 +421,7 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
                 }
                 // A steady stream of events must not postpone the work forever.
                 if first_pending_at.is_some_and(|t| t.elapsed() >= MAX_DEBOUNCE_WAIT) {
-                    flush(shared, &mut pending, &mut rescan, &mut first_pending_at);
+                    listing_failed = !flush(shared, &mut pending, &mut rescan, &mut first_pending_at);
                 }
             }
             Ok(Message::Rescan) => {
@@ -423,21 +433,25 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
             Ok(Message::Shutdown) | Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => {
                 if busy {
-                    flush(shared, &mut pending, &mut rescan, &mut first_pending_at);
+                    listing_failed = !flush(shared, &mut pending, &mut rescan, &mut first_pending_at);
                     next_reconcile = after(options.reconcile_every);
                 } else {
                     let now = Instant::now();
                     if now >= next_reconcile {
-                        shared.reconcile();
+                        listing_failed = !shared.reconcile();
                         next_reconcile = after(options.reconcile_every);
                     }
                     if now >= next_check {
                         next_check = after(FOLDER_CHECK_EVERY);
+                        if listing_failed {
+                            listing_failed = !shared.reconcile();
+                        }
                         // A watcher does not always say that the cards folder was deleted or came back: Windows ends
                         // the watch without a word, and a folder removed in one go may produce no event for its
-                        // notes. Looking is one `stat`, so do it on a timer instead of trusting every back end.
+                        // notes. Looking is one `stat`, so do it on a timer instead of trusting every back end. A
+                        // folder that is not there while the index still holds notes means those notes are gone.
                         if let Some(w) = watching.as_mut()
-                            && follow_folder(shared, w)
+                            && (follow_folder(shared, w) || (!w.attached && shared.has_notes()))
                         {
                             rescan = true;
                         }
@@ -485,9 +499,16 @@ fn is_folder_like(path: &Path) -> bool {
     }
 }
 
-fn flush(shared: &Shared, pending: &mut HashSet<String>, rescan: &mut bool, first_pending_at: &mut Option<Instant>) {
+/// Applies what is pending. Returns `false` when a full look at the folder was needed and could not be made.
+fn flush(
+    shared: &Shared,
+    pending: &mut HashSet<String>,
+    rescan: &mut bool,
+    first_pending_at: &mut Option<Instant>,
+) -> bool {
+    let mut listed = true;
     if std::mem::take(rescan) {
-        shared.reconcile();
+        listed = shared.reconcile();
         pending.clear();
     } else {
         let paths: Vec<String> = pending.drain().collect();
@@ -497,6 +518,7 @@ fn flush(shared: &Shared, pending: &mut HashSet<String>, rescan: &mut bool, firs
         }
     }
     *first_pending_at = None;
+    listed
 }
 
 impl CardIndex {

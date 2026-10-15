@@ -128,6 +128,19 @@ fn a_nested_cards_folder_that_is_made_one_level_at_a_time_is_found() {
     assert!(eventually(PATIENCE, || index.stats().watching));
 }
 
+/// What an index and its folder look like, for the message of an assertion that fails on a platform nobody can debug.
+fn diagnosis(index: &CardIndex, root: &Path) -> String {
+    let cards = root.join("Cards");
+    format!(
+        "keys {:?}; {:?}; Cards exists={} is_dir={} metadata={:?}",
+        keys(index),
+        index.stats(),
+        cards.exists(),
+        cards.is_dir(),
+        fs::metadata(&cards).map(|m| m.is_dir()).map_err(|e| e.kind())
+    )
+}
+
 #[test]
 fn a_cards_folder_that_is_deleted_and_made_again_is_watched_again() {
     let dir = temp_vault();
@@ -137,7 +150,7 @@ fn a_cards_folder_that_is_deleted_and_made_again_is_watched_again() {
     assert!(index.stats().watching);
 
     fs::remove_dir_all(dir.path().join("Cards")).unwrap();
-    assert!(eventually(PATIENCE, || index.is_empty()), "{:?}", keys(&index));
+    assert!(eventually(PATIENCE, || index.is_empty()), "{}", diagnosis(&index, dir.path()));
     write_card(dir.path(), &sample_card("OP-2", "todo", "N"));
     assert!(eventually(PATIENCE, || keys(&index) == ["OP-2"]), "{:?}", keys(&index));
     write_card(dir.path(), &sample_card("OP-3", "todo", "O"));
@@ -723,6 +736,62 @@ fn an_index_that_was_hammered_by_creates_deletes_refreshes_and_reconciles_ends_u
     let mut in_index = keys(&index);
     in_index.sort();
     assert_eq!(in_index, on_disk, "the index and the disk disagree after the dust settled");
+}
+
+#[test]
+fn a_listing_that_fails_is_tried_again_at_the_next_tick_and_never_empties_the_index() {
+    struct Flaky {
+        inner: FsStorage,
+        failing: Arc<AtomicBool>,
+    }
+    impl Storage for Flaky {
+        fn list_markdown(&self, folder: &str) -> Result<Vec<String>> {
+            self.inner.list_markdown(folder)
+        }
+        fn list_stamped(&self, folder: &str) -> Result<Vec<(String, Option<Stamp>)>> {
+            if self.failing.load(Ordering::SeqCst) {
+                return Err(oprojects_mcp::error::Error::Config("the disk is on fire".into()));
+            }
+            self.inner.list_stamped(folder)
+        }
+        fn read(&self, path: &str) -> Result<String> {
+            self.inner.read(path)
+        }
+        fn create(&self, path: &str, content: &str) -> Result<()> {
+            self.inner.create(path, content)
+        }
+        fn modify(&self, path: &str, f: &mut dyn FnMut(&str) -> Result<String>) -> Result<String> {
+            self.inner.modify(path, f)
+        }
+        fn remove(&self, path: &str) -> Result<()> {
+            self.inner.remove(path)
+        }
+        fn exists(&self, path: &str) -> bool {
+            self.inner.exists(path)
+        }
+        fn stamp(&self, path: &str) -> Option<Stamp> {
+            self.inner.stamp(path)
+        }
+    }
+    let dir = temp_vault();
+    write_card(dir.path(), &sample_card("OP-1", "todo", "M"));
+    let failing = Arc::new(AtomicBool::new(true));
+    let index = CardIndex::start(
+        Arc::new(Flaky { inner: FsStorage::new(dir.path()), failing: Arc::clone(&failing) }),
+        BoardConfig::default(),
+        IndexOptions { reconcile_every: Duration::from_secs(3600), ..IndexOptions::default() },
+    );
+    assert!(index.wait_until_loaded(PATIENCE));
+    assert!(index.is_empty(), "the first load could not list the folder");
+
+    // The next reconciliation is an hour away: the retry has to come from the worker's own tick.
+    failing.store(false, Ordering::SeqCst);
+    assert!(eventually(PATIENCE, || index.len() == 1), "{:?}", index.stats());
+
+    // And a listing that fails later must not be taken for "the folder is empty".
+    failing.store(true, Ordering::SeqCst);
+    index.reconcile();
+    assert_eq!(keys(&index), ["OP-1"]);
 }
 
 #[test]
