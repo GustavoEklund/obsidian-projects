@@ -72,7 +72,7 @@ function str(v: unknown): string | undefined {
 }
 
 function normalizeColumns(raw: unknown): Column[] {
-  if (!Array.isArray(raw)) return DEFAULT_COLUMNS.map((c) => ({ ...c }));
+  if (!Array.isArray(raw)) return DEFAULT_COLUMNS.map((c) => Object.assign({}, c));
   const seen = new Set<string>();
   const out: Column[] = [];
   for (const item of raw) {
@@ -89,7 +89,7 @@ function normalizeColumns(raw: unknown): Column[] {
     if (typeof r.wip === 'number' && Number.isFinite(r.wip) && r.wip > 0) col.wip = Math.floor(r.wip);
     out.push(col);
   }
-  return out.length ? out : DEFAULT_COLUMNS.map((c) => ({ ...c }));
+  return out.length ? out : DEFAULT_COLUMNS.map((c) => Object.assign({}, c));
 }
 
 /**
@@ -99,7 +99,10 @@ function normalizeColumns(raw: unknown): Column[] {
 export function normalizeConfig(raw: unknown): BoardConfig {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const prefix = (str(r.prefix) ?? '').toUpperCase();
-  const hide = typeof r.hideDoneAfterDays === 'number' && r.hideDoneAfterDays >= 0 ? Math.floor(r.hideDoneAfterDays) : DEFAULT_CONFIG.hideDoneAfterDays;
+  const hide =
+    typeof r.hideDoneAfterDays === 'number' && r.hideDoneAfterDays >= 0
+      ? Math.floor(r.hideDoneAfterDays)
+      : DEFAULT_CONFIG.hideDoneAfterDays;
   return {
     folder: normalizeFolder(str(r.folder) ?? '') || DEFAULT_CONFIG.folder,
     prefix: isValidPrefix(prefix) ? prefix : DEFAULT_CONFIG.prefix,

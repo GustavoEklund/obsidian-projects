@@ -13,7 +13,8 @@ export class ObsidianStorage implements Storage {
       .map((f) => f.path);
   }
 
-  read(path: string): Promise<string> {
+  // `async` so a missing note is a rejected promise like everywhere else, not a synchronous throw.
+  async read(path: string): Promise<string> {
     return this.app.vault.read(this.file(path));
   }
 
@@ -31,7 +32,7 @@ export class ObsidianStorage implements Storage {
   }
 
   /** `Vault.process` is Obsidian's atomic read-modify-write, safe against the editor saving at the same time. */
-  modify(path: string, fn: (content: string) => string): Promise<string> {
+  async modify(path: string, fn: (content: string) => string): Promise<string> {
     return this.app.vault.process(this.file(path), fn);
   }
 
@@ -56,6 +57,7 @@ export class ObsidianStorage implements Storage {
       current = current ? `${current}/${part}` : part;
       if (this.app.vault.getAbstractFileByPath(current)) continue;
       try {
+        // oxlint-disable-next-line no-await-in-loop -- parents must exist before their children: one at a time
         await this.app.vault.createFolder(current);
       } catch (e) {
         if (!/already exists/i.test(String(e))) throw e;

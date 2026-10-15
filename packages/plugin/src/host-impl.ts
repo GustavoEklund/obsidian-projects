@@ -1,4 +1,13 @@
-import { applyPatch, rankForPlacement, type BoardConfig, type Card, type CardPatch, type CardService, type NewCardInput, type Placement } from '@oprojects/core';
+import {
+  applyPatch,
+  rankForPlacement,
+  type BoardConfig,
+  type Card,
+  type CardPatch,
+  type CardService,
+  type NewCardInput,
+  type Placement,
+} from '@oprojects/core';
 import { t } from './i18n';
 import type { CardStore } from './store';
 import type { BoardHost, MenuEntry } from './ui/host';

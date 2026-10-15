@@ -40,11 +40,38 @@ afterEach(() => rm(vault, { recursive: true, force: true }));
 
 describe('add / show / list', () => {
   it('creates a card with all options and shows it back', async () => {
-    const r = await oprojects('add', 'Fix', 'the', 'login', '-t', 'bug', '-p', 'high', '-a', 'ana', '-l', 'auth,backend', '--due', '+3d', '--estimate', '5');
+    const r = await oprojects(
+      'add',
+      'Fix',
+      'the',
+      'login',
+      '-t',
+      'bug',
+      '-p',
+      'high',
+      '-a',
+      'ana',
+      '-l',
+      'auth,backend',
+      '--due',
+      '+3d',
+      '--estimate',
+      '5',
+    );
     expect(r.code).toBe(0);
     expect(r.out).toContain('OP-1');
     const card = await json('show', 'OP-1');
-    expect(card).toMatchObject({ key: 'OP-1', title: 'Fix the login', type: 'bug', priority: 'high', assignee: 'ana', labels: ['auth', 'backend'], due: '2026-10-17', estimate: 5, status: 'todo' });
+    expect(card).toMatchObject({
+      key: 'OP-1',
+      title: 'Fix the login',
+      type: 'bug',
+      priority: 'high',
+      assignee: 'ana',
+      labels: ['auth', 'backend'],
+      due: '2026-10-17',
+      estimate: 5,
+      status: 'todo',
+    });
     expect(await readFile(path.join(vault, 'Cards', 'OP-1.md'), 'utf8')).toContain('title: Fix the login');
   });
 
@@ -75,14 +102,25 @@ describe('add / show / list', () => {
     await oprojects('add', 'Alpha');
     await oprojects('add', 'Beta', '-s', 'done');
     const { out } = await oprojects('board');
-    for (const needle of ['TO DO', 'IN PROGRESS', 'REVIEW', 'DONE', 'OP-1', 'OP-2', 'Alpha', 'Beta']) expect(out).toContain(needle);
+    for (const needle of ['TO DO', 'IN PROGRESS', 'REVIEW', 'DONE', 'OP-1', 'OP-2', 'Alpha', 'Beta'])
+      expect(out).toContain(needle);
     expect(Math.max(...out.split('\n').map((l) => l.length))).toBeLessThanOrEqual(100);
   });
 
   it('falls back to stacked columns on a narrow terminal', async () => {
     await oprojects('add', 'Alpha');
     let out = '';
-    await run(['board'], { cwd: vault, env: {}, out: (t) => void (out += t), err: () => {}, readStdin: async () => '', isTTY: false, columns: 50, now: () => NOW, openUrl: async () => {} });
+    await run(['board'], {
+      cwd: vault,
+      env: {},
+      out: (t) => void (out += t),
+      err: () => {},
+      readStdin: async () => '',
+      isTTY: false,
+      columns: 50,
+      now: () => NOW,
+      openUrl: async () => {},
+    });
     expect(out.split('\n').some((l) => l.includes('TO DO') && l.includes('IN PROGRESS'))).toBe(false);
     expect(out).toContain('OP-1');
   });
@@ -102,7 +140,22 @@ describe('move / edit / rm', () => {
 
   it('edits fields, clears with none, and adds/removes labels', async () => {
     await oprojects('add', 'a', '-a', 'ana', '--due', 'today', '-l', 'x,y');
-    await oprojects('edit', '1', '--title', 'renamed', '-p', 'lowest', '-a', 'none', '--due', 'none', '--add-label', 'z', '--rm-label', 'x');
+    await oprojects(
+      'edit',
+      '1',
+      '--title',
+      'renamed',
+      '-p',
+      'lowest',
+      '-a',
+      'none',
+      '--due',
+      'none',
+      '--add-label',
+      'z',
+      '--rm-label',
+      'x',
+    );
     const c = await json('show', '1');
     expect(c).toMatchObject({ title: 'renamed', priority: 'lowest', labels: ['y', 'z'] });
     expect(c.assignee).toBeUndefined();
@@ -149,7 +202,17 @@ describe('errors and ergonomics', () => {
     await oprojects('add', 'a');
     const elsewhere = await mkdtemp(path.join(tmpdir(), 'oprojects-cwd-'));
     let out = '';
-    const io = { cwd: elsewhere, env: {}, out: (t: string) => void (out += t), err: () => {}, readStdin: async () => '', isTTY: false, columns: 80, now: () => NOW, openUrl: async () => {} };
+    const io = {
+      cwd: elsewhere,
+      env: {},
+      out: (t: string) => void (out += t),
+      err: () => {},
+      readStdin: async () => '',
+      isTTY: false,
+      columns: 80,
+      now: () => NOW,
+      openUrl: async () => {},
+    };
     expect(await run(['--vault', vault, '--json', 'ls'], io)).toBe(0);
     expect(JSON.parse(out)).toHaveLength(1);
     out = '';
@@ -161,7 +224,17 @@ describe('errors and ergonomics', () => {
   it('fails clearly outside a vault', async () => {
     const outside = await mkdtemp(path.join(tmpdir(), 'oprojects-nov-'));
     let err = '';
-    const code = await run(['ls'], { cwd: outside, env: {}, out: () => {}, err: (t) => void (err += t), readStdin: async () => '', isTTY: false, columns: 80, now: () => NOW, openUrl: async () => {} });
+    const code = await run(['ls'], {
+      cwd: outside,
+      env: {},
+      out: () => {},
+      err: (t) => void (err += t),
+      readStdin: async () => '',
+      isTTY: false,
+      columns: 80,
+      now: () => NOW,
+      openUrl: async () => {},
+    });
     await rm(outside, { recursive: true, force: true });
     expect(code).toBe(1);
     expect(err).toContain('No Obsidian vault found');
@@ -208,7 +281,7 @@ describe('parseDue', () => {
     expect(parseDue('tomorrow', NOW)).toBe('2026-10-15');
     expect(parseDue('+2w', NOW)).toBe('2026-10-28');
     expect(parseDue('2026-12-24', NOW)).toBe('2026-12-24');
-    expect(() => parseDue('someday', NOW)).toThrow();
+    expect(() => parseDue('someday', NOW)).toThrow('Invalid date "someday"');
   });
 });
 
@@ -236,7 +309,10 @@ describe('comments', () => {
     expect(added.out).toMatch(/Commented on OP-1 #\w+/);
     await oprojects('comment', 'OP-1', 'Second comment', '--author', 'Bruno');
     const card = await json('show', '1');
-    expect(card.comments.map((c: { author: string; text: string }) => [c.author, c.text])).toEqual([['Ana', 'Reproduced on Safari'], ['Bruno', 'Second comment']]);
+    expect(card.comments.map((c: { author: string; text: string }) => [c.author, c.text])).toEqual([
+      ['Ana', 'Reproduced on Safari'],
+      ['Bruno', 'Second comment'],
+    ]);
     expect(card.body.trim()).toBe('Original description');
     const shown = (await oprojects('show', '1')).out;
     expect(shown).toContain('Comments (2)');
@@ -272,7 +348,9 @@ describe('comments', () => {
   it('writes a plain Markdown callout in the note', async () => {
     await oprojects('comment', '1', 'texto');
     const raw = await readFile(path.join(vault, 'Cards', 'OP-1.md'), 'utf8');
-    expect(raw).toMatch(/\n## Comments\n\n> \[!comment\|\w+,\d{4}-\d{2}-\d{2}T[\d:.]+Z\] Ana · \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n> texto\n$/);
+    expect(raw).toMatch(
+      /\n## Comments\n\n> \[!comment\|\w+,\d{4}-\d{2}-\d{2}T[\d:.]+Z\] Ana · \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n> texto\n$/,
+    );
   });
 
   it('reports usage and not-found errors', async () => {
@@ -287,7 +365,17 @@ describe('comments', () => {
   });
 
   it('falls back to the OS user when the board has no "me"', async () => {
-    const io = (user: string) => ({ cwd: vault, env: { USER: user }, out: () => {}, err: () => {}, readStdin: async () => '', isTTY: false, columns: 80, now: () => NOW, openUrl: async () => {} });
+    const io = (user: string) => ({
+      cwd: vault,
+      env: { USER: user },
+      out: () => {},
+      err: () => {},
+      readStdin: async () => '',
+      isTTY: false,
+      columns: 80,
+      now: () => NOW,
+      openUrl: async () => {},
+    });
     await oprojects('init', '--me', '');
     await run(['comment', '1', 'oi'], io('gustavo'));
     expect((await json('show', '1')).comments[0].author).toBe('gustavo');

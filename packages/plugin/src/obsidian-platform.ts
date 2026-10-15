@@ -18,7 +18,9 @@ class ConfirmModal extends Modal {
   override onOpen(): void {
     this.contentEl.createEl('p', { text: this.message });
     const row = this.contentEl.createDiv({ cls: 'modal-button-container' });
-    row.createEl('button', { text: this.confirmLabel, cls: 'mod-warning' }).addEventListener('click', () => this.answer(true));
+    row
+      .createEl('button', { text: this.confirmLabel, cls: 'mod-warning' })
+      .addEventListener('click', () => this.answer(true));
     row.createEl('button', { text: t('cancel') }).addEventListener('click', () => this.answer(false));
   }
 
@@ -51,7 +53,9 @@ export class ObsidianPlatform implements Platform {
     if (!(file instanceof TFile)) return;
     // Never replace the board itself: reuse another note pane if there is one, else open beside it.
     const existing = this.app.workspace.getLeavesOfType('markdown')[0];
-    const leaf = opts?.newTab ? this.app.workspace.getLeaf('tab') : (existing ?? this.app.workspace.getLeaf('split', 'vertical'));
+    const leaf = opts?.newTab
+      ? this.app.workspace.getLeaf('tab')
+      : (existing ?? this.app.workspace.getLeaf('split', 'vertical'));
     void leaf.openFile(file);
     void this.app.workspace.revealLeaf(leaf);
   }

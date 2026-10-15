@@ -2,7 +2,8 @@ import { parseCard, type Card } from '@oprojects/core';
 import { describe, expect, it, vi } from 'vitest';
 import { CardStore } from '../src/store';
 
-const card = (key: string, extra = ''): Card => parseCard(`Cards/${key}.md`, `---\nkey: ${key}\ntitle: T ${key}\nstatus: todo\n${extra}---\n`)!;
+const card = (key: string, extra = ''): Card =>
+  parseCard(`Cards/${key}.md`, `---\nkey: ${key}\ntitle: T ${key}\nstatus: todo\n${extra}---\n`)!;
 
 describe('CardStore', () => {
   it('is not ready until the first full load', () => {

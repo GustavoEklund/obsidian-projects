@@ -1,6 +1,14 @@
 import { formatSection, joinBody, parseComments, splitBody } from './body';
 import { parseFrontmatter, patchFrontmatter, splitFrontmatter } from './frontmatter';
-import { CARD_TYPES, PRIORITIES, type Card, type CardPatch, type CardType, type Checklist, type Priority } from './types';
+import {
+  CARD_TYPES,
+  PRIORITIES,
+  type Card,
+  type CardPatch,
+  type CardType,
+  type Checklist,
+  type Priority,
+} from './types';
 
 export const KEY_RE = /^([A-Z][A-Z0-9]{1,9})-(\d+)$/;
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,7 +70,9 @@ function asLabels(v: unknown): string[] {
 export function normalizeLabels(labels: string[]): string[] {
   const out: string[] = [];
   for (const l of labels) {
-    const clean = l.trim().replace(/^#/, '').replace(/\s+/g, '-');
+    // Every leading `#` goes (`##tag` -> `tag`): stripping just one would not be idempotent, and the card would
+    // read back as `tag` after being saved as `#tag`.
+    const clean = l.trim().replace(/^#+/, '').replace(/\s+/g, '-');
     if (clean && !out.includes(clean)) out.push(clean);
   }
   return out;
@@ -155,7 +165,13 @@ export function sameCard(a: Card, b: Card): boolean {
     a.resolved === b.resolved &&
     a.body === b.body &&
     a.comments.length === b.comments.length &&
-    a.comments.every((c, i) => c.id === b.comments[i]!.id && c.text === b.comments[i]!.text && c.author === b.comments[i]!.author && c.at === b.comments[i]!.at) &&
+    a.comments.every(
+      (c, i) =>
+        c.id === b.comments[i]!.id &&
+        c.text === b.comments[i]!.text &&
+        c.author === b.comments[i]!.author &&
+        c.at === b.comments[i]!.at,
+    ) &&
     a.labels.length === b.labels.length &&
     a.labels.every((l, i) => l === b.labels[i])
   );

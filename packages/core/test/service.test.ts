@@ -26,7 +26,13 @@ describe('CardService.create', () => {
   it('allocates sequential keys and writes a note per card', async () => {
     const { storage, svc } = setup();
     const a = await svc.create({ title: 'First' });
-    const b = await svc.create({ title: 'Second', type: 'bug', priority: 'high', labels: ['x y', 'z'], assignee: 'Ana' });
+    const b = await svc.create({
+      title: 'Second',
+      type: 'bug',
+      priority: 'high',
+      labels: ['x y', 'z'],
+      assignee: 'Ana',
+    });
     expect([a.key, b.key]).toEqual(['OP-1', 'OP-2']);
     expect(storage.files.has('Cards/OP-1.md')).toBe(true);
     expect(b).toMatchObject({ type: 'bug', priority: 'high', labels: ['x-y', 'z'], assignee: 'Ana', status: 'todo' });
@@ -250,7 +256,11 @@ describe('FsStorage (real disk)', () => {
   it('two writers racing for the same number never overwrite each other', async () => {
     const a = new CardService(new FsStorage(root), config, { snapshot: () => [] });
     const b = new CardService(new FsStorage(root), config, { snapshot: () => [] });
-    const made = await Promise.all([a.create({ title: 'from a' }), b.create({ title: 'from b' }), a.create({ title: 'from a2' })]);
+    const made = await Promise.all([
+      a.create({ title: 'from a' }),
+      b.create({ title: 'from b' }),
+      a.create({ title: 'from a2' }),
+    ]);
     expect(new Set(made.map((c) => c.key)).size).toBe(3);
     expect((await new CardService(new FsStorage(root), config).list()).length).toBe(3);
   });
@@ -313,7 +323,10 @@ describe('comments', () => {
     await svc.addComment('OP-1', { text: 'first' });
     tick();
     const card = await svc.addComment('OP-1', { text: 'second\n\n- item', author: 'Bruno' });
-    expect(card.comments.map((x) => [x.id, x.author, x.text])).toEqual([['c1', 'Ana', 'first'], ['c2', 'Bruno', 'second\n\n- item']]);
+    expect(card.comments.map((x) => [x.id, x.author, x.text])).toEqual([
+      ['c1', 'Ana', 'first'],
+      ['c2', 'Bruno', 'second\n\n- item'],
+    ]);
     expect(card.comments[1]!.at).toBe(clock.toISOString());
     expect(card.body.trim()).toBe('Description');
   });
@@ -367,7 +380,10 @@ describe('comments', () => {
     await svc.create({ title: 'a' });
     await svc.addComment('OP-1', { text: 'um' });
     await svc.addComment('OP-1', { text: 'dois' });
-    expect((await svc.editComment('OP-1', 'c2', 'two edited')).comments.map((x) => x.text)).toEqual(['um', 'two edited']);
+    expect((await svc.editComment('OP-1', 'c2', 'two edited')).comments.map((x) => x.text)).toEqual([
+      'um',
+      'two edited',
+    ]);
     expect((await svc.removeComment('OP-1', 'c1')).comments.map((x) => x.id)).toEqual(['c2']);
     await expect(svc.editComment('OP-1', 'nope', 'x')).rejects.toThrow(/Comment nope on OP-1 not found/);
     await expect(svc.removeComment('OP-1', 'nope')).rejects.toThrow(NotFoundError);

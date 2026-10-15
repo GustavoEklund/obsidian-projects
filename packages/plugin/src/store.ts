@@ -11,6 +11,10 @@ export class CardStore {
   private keyByPath = new Map<string, string>();
   private listeners = new Set<() => void>();
   private cached: readonly Card[] | null = null;
+  /** How many `batch` calls are running (they nest); while any is, notifications are held back. */
+  private depth = 0;
+  /** A change happened inside a batch and subscribers still have to be told. */
+  private pending = false;
 
   all(): readonly Card[] {
     return (this.cached ??= [...this.cards.values()]);
@@ -67,16 +71,21 @@ export class CardStore {
     this.changed();
   }
 
-  /** Apply many changes with a single notification. */
+  /**
+   * Apply many changes with a single notification, sent only if something actually changed (the vault echoing
+   * back our own write changes nothing, and should not make the board render again).
+   */
   batch(fn: () => void): void {
-    const listeners = this.listeners;
-    this.listeners = new Set();
+    this.depth++;
     try {
       fn();
     } finally {
-      this.listeners = listeners;
+      this.depth--;
+      if (this.depth === 0 && this.pending) {
+        this.pending = false;
+        this.notify();
+      }
     }
-    this.changed();
   }
 
   private put(card: Card): void {
@@ -85,7 +94,13 @@ export class CardStore {
   }
 
   private changed(): void {
-    this.cached = null;
-    for (const l of [...this.listeners]) l();
+    this.cached = null; // `all()` is fresh at once, even in the middle of a batch
+    if (this.depth > 0) this.pending = true;
+    else this.notify();
+  }
+
+  private notify(): void {
+    // Iterate a snapshot: a listener may unsubscribe (or subscribe) while we notify.
+    for (const l of Array.from(this.listeners)) l();
   }
 }

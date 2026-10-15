@@ -23,15 +23,19 @@ async function isDir(p: string): Promise<boolean> {
 export async function findVaultRoot(start: string, explicit?: string): Promise<string> {
   if (explicit) {
     const root = path.resolve(explicit);
-    if (!(await isDir(path.join(root, '.obsidian')))) throw new VaultNotFoundError(`"${root}" is not an Obsidian vault (no .obsidian folder)`);
+    if (!(await isDir(path.join(root, '.obsidian'))))
+      throw new VaultNotFoundError(`"${root}" is not an Obsidian vault (no .obsidian folder)`);
     return root;
   }
   let dir = path.resolve(start);
   for (;;) {
+    // oxlint-disable-next-line no-await-in-loop -- walking up one folder at a time, stopping at the first vault
     if (await isDir(path.join(dir, '.obsidian'))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) {
-      throw new VaultNotFoundError('No Obsidian vault found. Run inside a vault, or pass --vault <path> / set OPROJECTS_VAULT.');
+      throw new VaultNotFoundError(
+        'No Obsidian vault found. Run inside a vault, or pass --vault <path> / set OPROJECTS_VAULT.',
+      );
     }
     dir = parent;
   }

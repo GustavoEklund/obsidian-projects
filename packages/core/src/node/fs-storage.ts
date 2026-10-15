@@ -5,6 +5,8 @@ import { FileExistsError, NotFoundError, type Storage } from '../storage';
 /** `Storage` over a vault directory on disk. Paths are vault-relative, forward slashes. */
 export class FsStorage implements Storage {
   readonly root: string;
+  private readonly queues = new Map<string, Promise<unknown>>();
+  private tmpCounter = 0;
 
   constructor(root: string) {
     this.root = path.resolve(root);
@@ -65,10 +67,29 @@ export class FsStorage implements Storage {
    */
   async modify(rel: string, fn: (content: string) => string): Promise<string> {
     const file = this.abs(rel);
+    // Concurrent calls on one note (an MCP client firing several tools at once) must not interleave: each reads
+    // what the previous one wrote. They queue up per file; different files still run in parallel.
+    const run = (this.queues.get(file) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => this.rewrite(rel, file, fn));
+    this.queues.set(file, run);
+    try {
+      return await run;
+    } finally {
+      if (this.queues.get(file) === run) this.queues.delete(file);
+    }
+  }
+
+  private async rewrite(rel: string, file: string, fn: (content: string) => string): Promise<string> {
     const next = fn(await this.read(rel));
-    const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.tmp`);
-    await fs.writeFile(tmp, next, 'utf8');
-    await fs.rename(tmp, file);
+    const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${++this.tmpCounter}.tmp`);
+    try {
+      await fs.writeFile(tmp, next, 'utf8');
+      await fs.rename(tmp, file);
+    } catch (e) {
+      await fs.rm(tmp, { force: true });
+      throw e;
+    }
     return next;
   }
 
@@ -77,20 +98,28 @@ export class FsStorage implements Storage {
     const file = this.abs(rel);
     const trash = path.join(this.root, '.trash');
     await fs.mkdir(trash, { recursive: true });
-    let target = path.join(trash, path.basename(file));
-    try {
-      await fs.access(target);
-      const { name, ext } = path.parse(target);
-      target = path.join(trash, `${name} ${Date.now()}${ext}`);
-    } catch {
-      // free name
-    }
+    const target = await this.freeTrashName(trash, path.parse(file));
     try {
       await fs.rename(file, target);
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new NotFoundError(rel);
       throw e;
     }
+  }
+
+  /** `name.md`, else `name <timestamp>.md`, else `name <timestamp>-2.md`...: never an existing file (rename would overwrite it). */
+  private async freeTrashName(
+    trash: string,
+    { name, ext }: { name: string; ext: string },
+    attempt = 0,
+  ): Promise<string> {
+    const label = attempt === 0 ? name : `${name} ${Date.now()}${attempt > 1 ? `-${attempt}` : ''}`;
+    const target = path.join(trash, `${label}${ext}`);
+    const taken = await fs.access(target).then(
+      () => true,
+      () => false,
+    );
+    return taken ? this.freeTrashName(trash, { name, ext }, attempt + 1) : target;
   }
 
   async exists(rel: string): Promise<boolean> {

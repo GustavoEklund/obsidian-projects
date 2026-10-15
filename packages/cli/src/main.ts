@@ -3,7 +3,11 @@ import { run, type IO } from './run';
 
 function openUrl(url: string): Promise<void> {
   const [cmd, args] =
-    process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : ['xdg-open', [url]];
+    process.platform === 'darwin'
+      ? ['open', [url]]
+      : process.platform === 'win32'
+        ? ['cmd', ['/c', 'start', '""', url]]
+        : ['xdg-open', [url]];
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
     child.once('error', reject);

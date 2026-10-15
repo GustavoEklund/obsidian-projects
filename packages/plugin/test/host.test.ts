@@ -19,7 +19,11 @@ async function setup() {
   const config = normalizeConfig(DEFAULT_CONFIG);
   const service = new CardService(storage, config, { snapshot: () => store.all() as Card[] });
   const host = new CardsHost(store, () => service, platform);
-  const seed = [await service.create({ title: 'a' }), await service.create({ title: 'b' }), await service.create({ title: 'c' })];
+  const seed = [
+    await service.create({ title: 'a' }),
+    await service.create({ title: 'b' }),
+    await service.create({ title: 'c' }),
+  ];
   store.replaceAll(seed);
   return { storage, store, service, host };
 }

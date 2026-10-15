@@ -32,9 +32,16 @@ export function openPopover(opts: PopoverOptions): Popover {
 
   let selected = [...opts.selected];
   const search = opts.searchPlaceholder
-    ? h('input', { class: 'op-pop-search', props: { type: 'text', placeholder: opts.searchPlaceholder }, attrs: { 'aria-label': opts.searchPlaceholder } })
+    ? h('input', {
+        class: 'op-pop-search',
+        props: { type: 'text', placeholder: opts.searchPlaceholder },
+        attrs: { 'aria-label': opts.searchPlaceholder },
+      })
     : null;
-  const list = h('div', { class: 'op-pop-list', attrs: { role: 'listbox', 'aria-multiselectable': opts.multi } });
+  const list = h('div', {
+    class: 'op-pop-list',
+    attrs: { role: 'listbox', 'aria-multiselectable': String(opts.multi) },
+  });
   const pop = h('div', { class: 'op-pop' }, search, list);
 
   const render = () => {
@@ -48,10 +55,14 @@ export function openPopover(opts: PopoverOptions): Popover {
               'button',
               {
                 class: `op-pop-item${on ? ' is-on' : ''}`,
-                attrs: { role: 'option', 'aria-selected': on, type: 'button' },
+                attrs: { role: 'option', 'aria-selected': String(on), type: 'button' },
                 on: {
                   click: () => {
-                    selected = opts.multi ? (on ? selected.filter((v) => v !== o.value) : [...selected, o.value]) : [o.value];
+                    selected = opts.multi
+                      ? on
+                        ? selected.filter((v) => v !== o.value)
+                        : [...selected, o.value]
+                      : [o.value];
                     opts.onChange(selected);
                     if (opts.multi) render();
                     else close();

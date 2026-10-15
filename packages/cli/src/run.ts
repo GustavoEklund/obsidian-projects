@@ -20,7 +20,14 @@ import {
   type NewCardInput,
   type Priority,
 } from '@oprojects/core';
-import { FsStorage, VaultNotFoundError, findVaultRoot, hasBoardConfig, loadBoardConfig, saveBoardConfig } from '@oprojects/core/node';
+import {
+  FsStorage,
+  VaultNotFoundError,
+  findVaultRoot,
+  hasBoardConfig,
+  loadBoardConfig,
+  saveBoardConfig,
+} from '@oprojects/core/node';
 import { makePainter, renderBoard, renderCard, renderTable, type Painter } from './format';
 import pkg from '../package.json';
 
@@ -71,9 +78,14 @@ interface Command {
 class UsageError extends Error {}
 
 const str = (v: Values[string]): string | undefined => (typeof v === 'string' ? v : undefined);
-const list = (v: Values[string]): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : typeof v === 'string' ? [v] : []);
+const list = (v: Values[string]): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : typeof v === 'string' ? [v] : [];
 const flag = (v: Values[string]): boolean => v === true;
-const splitCsv = (xs: string[]): string[] => xs.flatMap((x) => x.split(',')).map((x) => x.trim()).filter(Boolean);
+const splitCsv = (xs: string[]): string[] =>
+  xs
+    .flatMap((x) => x.split(','))
+    .map((x) => x.trim())
+    .filter(Boolean);
 const isClear = (v: string): boolean => v === '' || v.toLowerCase() === 'none';
 
 const GLOBAL_OPTIONS: Options = {
@@ -146,7 +158,10 @@ function queryFromArgs(ctx: Ctx, { values }: Args): CardQuery {
   if (priority.length) q.priority = priority as Priority[];
   const assignee = splitCsv(list(values.assignee));
   if (flag(values.mine)) {
-    if (!ctx.config.me) throw new UsageError('--mine needs "me" in the board settings (Obsidian: Settings → Cards → My name, or `me` in data.json)');
+    if (!ctx.config.me)
+      throw new UsageError(
+        '--mine needs "me" in the board settings (Obsidian: Settings → Cards → My name, or `me` in data.json)',
+      );
     assignee.push('me');
   }
   if (assignee.length) q.assignee = assignee;
@@ -192,7 +207,8 @@ const COMMANDS: Command[] = [
     name: 'add',
     aliases: ['new', 'create'],
     summary: 'Create a card',
-    usage: 'oprojects add <title…> [-t type] [-p priority] [-s status] [-a assignee] [-l label,…] [--due date] [--estimate n] [--parent KEY] [--body text|-]',
+    usage:
+      'oprojects add <title…> [-t type] [-p priority] [-s status] [-a assignee] [-l label,…] [--due date] [--estimate n] [--parent KEY] [--body text|-]',
     examples: [
       'oprojects add Fix the login redirect -t bug -p high -a ana --due +3d',
       'oprojects add "Write release notes" -s doing -l docs,release',
@@ -217,14 +233,17 @@ const COMMANDS: Command[] = [
       };
       const card = await ctx.svc.create(input);
       if (ctx.json) return emit(ctx, card);
-      ctx.io.out(`${ctx.paint('green', 'Created')} ${ctx.paint('bold', card.key)}  ${card.title}\n${ctx.paint('gray', card.path)}\n`);
+      ctx.io.out(
+        `${ctx.paint('green', 'Created')} ${ctx.paint('bold', card.key)}  ${card.title}\n${ctx.paint('gray', card.path)}\n`,
+      );
     },
   },
   {
     name: 'list',
     aliases: ['ls'],
     summary: 'List cards (hides done cards older than the board setting; --all shows them)',
-    usage: 'oprojects list [-s status] [-t type] [-p priority] [-a assignee|none|me] [-l label] [--parent KEY] [-q text] [--mine] [--all]',
+    usage:
+      'oprojects list [-s status] [-t type] [-p priority] [-a assignee|none|me] [-l label] [--parent KEY] [-q text] [--mine] [--all]',
     examples: ['oprojects ls --mine', 'oprojects ls -s doing -s review', 'oprojects ls -q "login" -t bug --json'],
     options: { ...FILTER_OPTIONS },
     async run(ctx, args) {
@@ -244,7 +263,13 @@ const COMMANDS: Command[] = [
       if (ctx.json) {
         return emit(
           ctx,
-          groupByColumn(cards, ctx.config).map(({ column, cards: cs }) => ({ column: column.id, name: column.name, done: !!column.done, wip: column.wip, cards: cs.map(withoutBody) })),
+          groupByColumn(cards, ctx.config).map(({ column, cards: cs }) => ({
+            column: column.id,
+            name: column.name,
+            done: !!column.done,
+            wip: column.wip,
+            cards: cs.map(withoutBody),
+          })),
         );
       }
       ctx.io.out(renderBoard(cards, ctx.config, ctx.paint, ctx.io.columns, ctx.now) + '\n');
@@ -268,7 +293,8 @@ const COMMANDS: Command[] = [
     name: 'comment',
     aliases: ['c'],
     summary: 'Add, edit or remove a comment on a card',
-    usage: 'oprojects comment <key> <text…|-> [--author name]   |   oprojects comment <key> --edit <id> <text…|->   |   oprojects comment <key> --rm <id>',
+    usage:
+      'oprojects comment <key> <text…|-> [--author name]   |   oprojects comment <key> --edit <id> <text…|->   |   oprojects comment <key> --rm <id>',
     examples: [
       'oprojects comment 12 "Reproduced on Safari, only there"',
       'git log -1 --format=%B | oprojects comment 12 -',
@@ -293,7 +319,8 @@ const COMMANDS: Command[] = [
       } else {
         const joined = words.join(' ');
         const text = joined === '-' ? (await ctx.io.readStdin()).replace(/\r\n/g, '\n') : joined;
-        if (!text.trim()) throw new UsageError('Missing comment text. Usage: oprojects comment <key> <text…>  (use - to read stdin)');
+        if (!text.trim())
+          throw new UsageError('Missing comment text. Usage: oprojects comment <key> <text…>  (use - to read stdin)');
         if (editId) {
           card = await ctx.svc.editComment(key, editId, text);
           message = `${ctx.paint('green', 'Edited')} comment ${ctx.paint('gray', '#' + editId)} on ${ctx.paint('bold', card.key)}`;
@@ -333,9 +360,15 @@ const COMMANDS: Command[] = [
     name: 'edit',
     aliases: ['set'],
     summary: 'Change fields of a card (use "none" to clear a field)',
-    usage: 'oprojects edit <key> [--title t] [-s status] [-t type] [-p priority] [-a assignee|none] [-l label,…] [--add-label l] [--rm-label l] [--due date|none] [--estimate n|none] [--parent KEY|none] [--body text|-]',
+    usage:
+      'oprojects edit <key> [--title t] [-s status] [-t type] [-p priority] [-a assignee|none] [-l label,…] [--add-label l] [--rm-label l] [--due date|none] [--estimate n|none] [--parent KEY|none] [--body text|-]',
     examples: ['oprojects edit 12 -p highest --due tomorrow', 'oprojects edit 12 -a none --add-label blocked'],
-    options: { ...FIELD_OPTIONS, title: { type: 'string' }, 'add-label': { type: 'string', multiple: true }, 'rm-label': { type: 'string', multiple: true } },
+    options: {
+      ...FIELD_OPTIONS,
+      title: { type: 'string' },
+      'add-label': { type: 'string', multiple: true },
+      'rm-label': { type: 'string', multiple: true },
+    },
     async run(ctx, args) {
       const key = args.positionals[0];
       if (!key) throw new UsageError('Missing card key. Usage: oprojects edit <key> [options]');
@@ -350,7 +383,8 @@ const COMMANDS: Command[] = [
         const removed = new Set(rm.map((l) => l.toLowerCase()));
         patch.labels = [...current, ...add].filter((l) => !removed.has(l.toLowerCase()));
       }
-      if (!Object.keys(patch).length) throw new UsageError('Nothing to change. Pass at least one option, e.g. --priority high');
+      if (!Object.keys(patch).length)
+        throw new UsageError('Nothing to change. Pass at least one option, e.g. --priority high');
       const card = await ctx.svc.update(key, patch);
       if (ctx.json) return emit(ctx, card);
       ctx.io.out(`${ctx.paint('green', 'Updated')} ${ctx.paint('bold', card.key)}  ${card.title}\n`);
@@ -367,7 +401,9 @@ const COMMANDS: Command[] = [
       if (!key) throw new UsageError('Missing card key. Usage: oprojects rm <key>');
       const card = await ctx.svc.remove(key);
       if (ctx.json) return emit(ctx, withoutBody(card));
-      ctx.io.out(`${ctx.paint('yellow', 'Deleted')} ${ctx.paint('bold', card.key)}  ${card.title} ${ctx.paint('gray', '(in .trash)')}\n`);
+      ctx.io.out(
+        `${ctx.paint('yellow', 'Deleted')} ${ctx.paint('bold', card.key)}  ${card.title} ${ctx.paint('gray', '(in .trash)')}\n`,
+      );
     },
   },
   {
@@ -410,14 +446,22 @@ const INIT: Command = {
   name: 'init',
   summary: 'Set up the board in this vault (folder + project key)',
   usage: 'oprojects init [--prefix OP] [--folder Cards] [--me name] [--force]',
-  options: { prefix: { type: 'string' }, folder: { type: 'string' }, me: { type: 'string' }, force: { type: 'boolean' } },
+  options: {
+    prefix: { type: 'string' },
+    folder: { type: 'string' },
+    me: { type: 'string' },
+    force: { type: 'boolean' },
+  },
   async run(ctx, args) {
     const exists = await hasBoardConfig(ctx.root);
     const prefix = str(args.values.prefix)?.toUpperCase();
     const folder = str(args.values.folder);
-    if (prefix !== undefined && !isValidPrefix(prefix)) throw new UsageError(`Invalid prefix "${prefix}" (2–10 chars, A–Z and digits, starting with a letter)`);
+    if (prefix !== undefined && !isValidPrefix(prefix))
+      throw new UsageError(`Invalid prefix "${prefix}" (2–10 chars, A–Z and digits, starting with a letter)`);
     if (exists && (prefix || folder) && !flag(args.values.force)) {
-      throw new UsageError('This vault already has a board. Changing prefix/folder would orphan existing cards; pass --force if you really mean it.');
+      throw new UsageError(
+        'This vault already has a board. Changing prefix/folder would orphan existing cards; pass --force if you really mean it.',
+      );
     }
     const config = normalizeConfig({
       ...ctx.config,
@@ -426,7 +470,9 @@ const INIT: Command = {
       ...(str(args.values.me) !== undefined ? { me: str(args.values.me) } : {}),
     });
     if (exists && !prefix && folder === undefined && str(args.values.me) === undefined) {
-      return void ctx.io.out(`Board already set up (${ctx.paint('bold', config.prefix)} in ${config.folder}/). Nothing to do.\n`);
+      return void ctx.io.out(
+        `Board already set up (${ctx.paint('bold', config.prefix)} in ${config.folder}/). Nothing to do.\n`,
+      );
     }
     await saveBoardConfig(ctx.root, config);
     await new FsStorage(ctx.root).create(`${config.folder}/.keep`, '').catch(() => undefined);
@@ -477,11 +523,12 @@ function commandHelp(cmd: Command, paint: Painter): string {
   ].join('\n');
 }
 
-/** Lets `--vault`, `--json` and `--no-color` appear anywhere, including before the command. */
+/** Lets `--vault`, `--json` and `--no-color` appear anywhere before a `--`, including before the command. */
 function hoistGlobals(argv: string[]): string[] {
   const globals: string[] = [];
   const rest: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
+  let i = 0;
+  for (; i < argv.length && argv[i] !== '--'; i++) {
     const a = argv[i]!;
     if (a === '--vault') {
       globals.push(a);
@@ -489,7 +536,8 @@ function hoistGlobals(argv: string[]): string[] {
     } else if (a.startsWith('--vault=') || a === '--json' || a === '--no-color') globals.push(a);
     else rest.push(a);
   }
-  return [...rest, ...globals];
+  // The globals go in front of the `--` terminator; whatever follows it is literal (a title may start with a dash).
+  return [...rest, ...globals, ...argv.slice(i)];
 }
 
 /** Entry point; returns the process exit code. */
@@ -517,7 +565,12 @@ export async function run(rawArgv: string[], io: IO): Promise<number> {
 
   let json = false;
   try {
-    const parsed = parseArgs({ args: argv.slice(1), options: { ...GLOBAL_OPTIONS, ...cmd.options }, allowPositionals: true, strict: true });
+    const parsed = parseArgs({
+      args: argv.slice(1),
+      options: { ...GLOBAL_OPTIONS, ...cmd.options },
+      allowPositionals: true,
+      strict: true,
+    });
     const args: Args = { values: parsed.values as Values, positionals: parsed.positionals };
     json = flag(args.values.json);
 
@@ -537,7 +590,12 @@ export async function run(rawArgv: string[], io: IO): Promise<number> {
       io.err(`${paint('red', 'error:')} ${msg}\n${paint('gray', `See: oprojects ${cmd.name} --help`)}\n`);
       return 2;
     }
-    if (e instanceof ValidationError || e instanceof NotFoundError || e instanceof VaultNotFoundError || e instanceof ConfigError) {
+    if (
+      e instanceof ValidationError ||
+      e instanceof NotFoundError ||
+      e instanceof VaultNotFoundError ||
+      e instanceof ConfigError
+    ) {
       io.err(json ? JSON.stringify({ error: msg }) + '\n' : `${paint('red', 'error:')} ${msg}\n`);
       return 1;
     }

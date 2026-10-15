@@ -1,10 +1,29 @@
 import { addCommentToBody, cleanAuthor, editCommentInBody, joinBody, removeCommentFromBody, splitBody } from './body';
-import { isCardType, isPriority, isValidDate, KEY_RE, keyNumber, newCardContent, normalizeLabels, parseCard } from './card';
+import {
+  isCardType,
+  isPriority,
+  isValidDate,
+  KEY_RE,
+  keyNumber,
+  newCardContent,
+  normalizeLabels,
+  parseCard,
+} from './card';
 import { displayColumn, isDoneStatus, resolveColumn, type BoardConfig } from './config';
 import { patchFrontmatter, splitFrontmatter, type FrontmatterPatch } from './frontmatter';
 import { UNASSIGNED, filterCards, isArchivedDone, rankForPlacement, sortCards, type CardFilter } from './query';
 import { FileExistsError, NotFoundError, type Storage } from './storage';
-import { CARD_TYPES, PRIORITIES, type Card, type CardPatch, type CardType, type Comment, type NewCardInput, type Placement, type Priority } from './types';
+import {
+  CARD_TYPES,
+  PRIORITIES,
+  type Card,
+  type CardPatch,
+  type CardType,
+  type Comment,
+  type NewCardInput,
+  type Placement,
+  type Priority,
+} from './types';
 
 export class ValidationError extends Error {}
 
@@ -48,6 +67,7 @@ export class CardService {
   private readonly now: () => Date;
   private readonly newId: () => string;
   private readonly snapshot: () => Card[] | Promise<Card[]>;
+  private creating: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly storage: Storage,
@@ -71,6 +91,7 @@ export class CardService {
         while (next < paths.length) {
           const path = paths[next++]!;
           try {
+            // oxlint-disable-next-line no-await-in-loop -- each worker reads one note at a time; the pool is the parallelism
             const card = parseCard(path, await this.storage.read(path));
             if (card) cards.push(card);
           } catch {
@@ -96,12 +117,17 @@ export class CardService {
         const v = a.trim();
         if (v.toLowerCase() === 'none' || v === UNASSIGNED) return UNASSIGNED;
         if (v.toLowerCase() !== 'me') return v;
-        if (!this.config.me) throw new ValidationError('"me" is not configured for this board (set "My name" in the plugin settings, or `me` in data.json)');
+        if (!this.config.me)
+          throw new ValidationError(
+            '"me" is not configured for this board (set "My name" in the plugin settings, or `me` in data.json)',
+          );
         return this.config.me;
       });
     }
-    for (const t of filter.type ?? []) if (!isCardType(t)) throw new ValidationError(`Invalid type "${t}" (${CARD_TYPES.join(', ')})`);
-    for (const p of filter.priority ?? []) if (!isPriority(p)) throw new ValidationError(`Invalid priority "${p}" (${PRIORITIES.join(', ')})`);
+    for (const t of filter.type ?? [])
+      if (!isCardType(t)) throw new ValidationError(`Invalid type "${t}" (${CARD_TYPES.join(', ')})`);
+    for (const p of filter.priority ?? [])
+      if (!isPriority(p)) throw new ValidationError(`Invalid priority "${p}" (${PRIORITIES.join(', ')})`);
 
     const now = this.now();
     const cards = (await this.list()).filter((c) => query.includeArchived || !isArchivedDone(c, this.config, now));
@@ -112,7 +138,8 @@ export class CardService {
   resolveKey(input: string): string {
     const v = input.trim().toUpperCase();
     if (/^\d+$/.test(v)) return `${this.config.prefix}-${Number(v)}`;
-    if (!KEY_RE.test(v)) throw new ValidationError(`"${input}" is not a card key (expected ${this.config.prefix}-123 or 123)`);
+    if (!KEY_RE.test(v))
+      throw new ValidationError(`"${input}" is not a card key (expected ${this.config.prefix}-123 or 123)`);
     return v;
   }
 
@@ -130,14 +157,25 @@ export class CardService {
     return found;
   }
 
-  async create(input: NewCardInput): Promise<Card> {
+  /**
+   * Creates run one after another within a service, so parallel callers (an MCP client firing several tools at
+   * once, a script) each see the cards the previous one wrote and get consecutive keys instead of colliding.
+   */
+  create(input: NewCardInput): Promise<Card> {
+    const run = this.creating.catch(() => undefined).then(() => this.createNow(input));
+    this.creating = run;
+    return run;
+  }
+
+  private async createNow(input: NewCardInput): Promise<Card> {
     const title = cleanTitle(input.title);
     const status = input.status === undefined ? this.config.columns[0]!.id : this.checkStatus(input.status);
     const type = input.type ?? 'task';
     const priority = input.priority ?? 'medium';
     if (!isCardType(type)) throw new ValidationError(`Invalid type "${type}" (${CARD_TYPES.join(', ')})`);
     if (!isPriority(priority)) throw new ValidationError(`Invalid priority "${priority}" (${PRIORITIES.join(', ')})`);
-    if (input.due !== undefined && !isValidDate(input.due)) throw new ValidationError(`Invalid due date "${input.due}" (expected YYYY-MM-DD)`);
+    if (input.due !== undefined && !isValidDate(input.due))
+      throw new ValidationError(`Invalid due date "${input.due}" (expected YYYY-MM-DD)`);
     if (input.estimate !== undefined) checkEstimate(input.estimate);
 
     const cards = await this.snapshot();
@@ -173,6 +211,7 @@ export class CardService {
         comments: [],
       };
       try {
+        // oxlint-disable-next-line no-await-in-loop -- retry with the next key only after the previous attempt failed
         await this.storage.create(path, newCardContent(card));
         return parseCard(path, newCardContent(card))!;
       } catch (e) {
@@ -193,13 +232,16 @@ export class CardService {
       fm.type = patch.type;
     }
     if (patch.priority !== undefined) {
-      if (!isPriority(patch.priority)) throw new ValidationError(`Invalid priority "${patch.priority}" (${PRIORITIES.join(', ')})`);
+      if (!isPriority(patch.priority))
+        throw new ValidationError(`Invalid priority "${patch.priority}" (${PRIORITIES.join(', ')})`);
       fm.priority = patch.priority;
     }
     if (patch.assignee !== undefined) fm.assignee = patch.assignee?.trim() || null;
-    if (patch.labels !== undefined) fm.labels = normalizeLabels(patch.labels).length ? normalizeLabels(patch.labels) : null;
+    if (patch.labels !== undefined)
+      fm.labels = normalizeLabels(patch.labels).length ? normalizeLabels(patch.labels) : null;
     if (patch.due !== undefined) {
-      if (patch.due !== null && !isValidDate(patch.due)) throw new ValidationError(`Invalid due date "${patch.due}" (expected YYYY-MM-DD)`);
+      if (patch.due !== null && !isValidDate(patch.due))
+        throw new ValidationError(`Invalid due date "${patch.due}" (expected YYYY-MM-DD)`);
       fm.due = patch.due;
     }
     if (patch.estimate !== undefined) {
@@ -211,7 +253,8 @@ export class CardService {
       else {
         const parent = this.resolveKey(patch.parent);
         if (parent === card.key) throw new ValidationError('A card cannot be its own parent');
-        if (!(await this.snapshot()).some((c) => c.key === parent)) throw new ValidationError(`Parent card ${parent} does not exist`);
+        if (!(await this.snapshot()).some((c) => c.key === parent))
+          throw new ValidationError(`Parent card ${parent} does not exist`);
         fm.parent = parent;
       }
     }
@@ -225,7 +268,10 @@ export class CardService {
       if (isDone && !wasDone) fm.resolved = nowIso;
       else if (!isDone && wasDone) fm.resolved = null;
       // Changing column without saying where: land at the bottom of the new column.
-      if (patch.rank === undefined && displayColumn(this.config, status).id !== displayColumn(this.config, card.status).id) {
+      if (
+        patch.rank === undefined &&
+        displayColumn(this.config, status).id !== displayColumn(this.config, card.status).id
+      ) {
         fm.rank = rankForPlacement(await this.snapshot(), this.config, card.key, status);
       }
     }
@@ -234,7 +280,8 @@ export class CardService {
 
     const content = await this.storage.modify(card.path, (current) => {
       // `patch.body` is the description only: put the (current, on-disk) comments section back after it.
-      const body = patch.body === undefined ? undefined : joinBody(patch.body, splitBody(splitFrontmatter(current).body).section);
+      const body =
+        patch.body === undefined ? undefined : joinBody(patch.body, splitBody(splitFrontmatter(current).body).section);
       return patchFrontmatter(current, fm, body);
     });
     return parseCard(card.path, content) ?? card;
@@ -247,7 +294,8 @@ export class CardService {
   async addComment(input: string, comment: { text: string; author?: string }): Promise<Card> {
     const text = cleanText(comment.text);
     const author = cleanAuthor(comment.author?.trim() || this.config.me);
-    if (!author) throw new ValidationError('Who is commenting? Pass an author, or set "My name" in the board settings.');
+    if (!author)
+      throw new ValidationError('Who is commenting? Pass an author, or set "My name" in the board settings.');
     const card = await this.get(input);
     const taken = new Set(card.comments.map((c) => c.id));
     let id = this.newId();
@@ -259,12 +307,20 @@ export class CardService {
   async editComment(input: string, commentId: string, text: string): Promise<Card> {
     const next = cleanText(text);
     const card = await this.get(input);
-    return this.mutateBody(card, (body) => editCommentInBody(body, commentId, next), `Comment ${commentId} on ${card.key}`);
+    return this.mutateBody(
+      card,
+      (body) => editCommentInBody(body, commentId, next),
+      `Comment ${commentId} on ${card.key}`,
+    );
   }
 
   async removeComment(input: string, commentId: string): Promise<Card> {
     const card = await this.get(input);
-    return this.mutateBody(card, (body) => removeCommentFromBody(body, commentId), `Comment ${commentId} on ${card.key}`);
+    return this.mutateBody(
+      card,
+      (body) => removeCommentFromBody(body, commentId),
+      `Comment ${commentId} on ${card.key}`,
+    );
   }
 
   /** Rewrite the body atomically (against the freshest content), touching nothing else but `updated`. */
@@ -304,7 +360,10 @@ export class CardService {
 }
 
 function cleanText(text: string): string {
-  const t = text.replace(/\r\n/g, '\n').replace(/\s+$/, '').replace(/^\s*\n/, '');
+  const t = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+$/, '')
+    .replace(/^\s*\n/, '');
   if (!t.trim()) throw new ValidationError('A comment cannot be empty');
   return t;
 }

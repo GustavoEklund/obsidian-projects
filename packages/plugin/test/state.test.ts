@@ -7,7 +7,8 @@ describe('UiState', () => {
   });
 
   it('ignores nonsense widths from old or hand-edited layouts', () => {
-    for (const bad of [undefined, null, 'wide', NaN, Infinity, -5, 50, 239, 4001, {}]) expect(sanitizeState({ drawerWidth: bad }).drawerWidth).toBeNull();
+    for (const bad of [undefined, null, 'wide', NaN, Infinity, -5, 50, 239, 4001, {}])
+      expect(sanitizeState({ drawerWidth: bad }).drawerWidth).toBeNull();
   });
 
   it('states saved before the panel was resizable still load', () => {

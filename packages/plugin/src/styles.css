@@ -209,7 +209,9 @@
   color: var(--text-normal);
   background: transparent;
   white-space: nowrap;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
 }
 .op-root .op-pill:hover,
 .op-root .op-toggle:hover {
@@ -297,7 +299,9 @@
   border-radius: var(--op-radius);
   background: var(--background-secondary);
   border: 1px solid transparent;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
 }
 .op-col.op-col-over {
   border-color: color-mix(in srgb, var(--op-accent) 55%, transparent);
@@ -408,7 +412,10 @@
   user-select: none;
   -webkit-user-drag: element;
   -webkit-touch-callout: none;
-  transition: border-color 0.12s, box-shadow 0.12s, background-color 0.12s;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s,
+    background-color 0.12s;
 }
 .op-card:hover {
   border-color: var(--background-modifier-border-hover, var(--op-border));
@@ -908,7 +915,9 @@
   border: 1px solid transparent;
   border-radius: var(--op-radius);
   cursor: text;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
 }
 .op-preview:hover {
   background: var(--op-hover);
@@ -969,7 +978,9 @@
 .op-root :is(.op-preview, .op-comment-body) pre {
   overflow-x: auto;
 }
-.op-root :is(.op-preview, .op-comment-body) :is(img, video, canvas, svg, iframe, .internal-embed, .image-embed, .markdown-embed) {
+.op-root
+  :is(.op-preview, .op-comment-body)
+  :is(img, video, canvas, svg, iframe, .internal-embed, .image-embed, .markdown-embed) {
   max-width: 100%;
   height: auto;
 }

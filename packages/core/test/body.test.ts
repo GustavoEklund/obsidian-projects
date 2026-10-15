@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { addCommentToBody, editCommentInBody, formatComment, joinBody, parseComments, removeCommentFromBody, splitBody, toggleTask } from '../src/body';
+import {
+  addCommentToBody,
+  editCommentInBody,
+  formatComment,
+  joinBody,
+  parseComments,
+  removeCommentFromBody,
+  splitBody,
+  toggleTask,
+} from '../src/body';
 import type { Comment } from '../src/types';
 
-const c = (id: string, text: string, author = 'Ana', at = '2026-10-14T17:02:00.000Z'): Comment => ({ id, author, at, text });
+const c = (id: string, text: string, author = 'Ana', at = '2026-10-14T17:02:00.000Z'): Comment => ({
+  id,
+  author,
+  at,
+  text,
+});
 
 describe('splitBody / joinBody', () => {
   it('separates the description from the comments section', () => {
@@ -36,13 +50,31 @@ describe('splitBody / joinBody', () => {
 
 describe('parseComments', () => {
   it('parses id, author, time and multi-line markdown text', () => {
-    const body = ['Desc', '', '## Comments', '', '> [!comment|k3f9a,2026-10-14T17:02:00.000Z] Ana Souza · 2026-10-14 14:02', '> line 1', '>', '> - item', '> - item 2', ''].join('\n');
-    expect(parseComments(body)).toEqual([{ id: 'k3f9a', author: 'Ana Souza', at: '2026-10-14T17:02:00.000Z', text: 'line 1\n\n- item\n- item 2' }]);
+    const body = [
+      'Desc',
+      '',
+      '## Comments',
+      '',
+      '> [!comment|k3f9a,2026-10-14T17:02:00.000Z] Ana Souza · 2026-10-14 14:02',
+      '> line 1',
+      '>',
+      '> - item',
+      '> - item 2',
+      '',
+    ].join('\n');
+    expect(parseComments(body)).toEqual([
+      { id: 'k3f9a', author: 'Ana Souza', at: '2026-10-14T17:02:00.000Z', text: 'line 1\n\n- item\n- item 2' },
+    ]);
   });
 
   it('keeps document order and separates adjacent blocks', () => {
-    const body = '## Comments\n\n> [!comment|a,2026-01-01T00:00:00.000Z] A\n> one\n> [!comment|b,2026-01-02T00:00:00.000Z] B\n> two\n\n> [!comment|c] C\n> three\n';
-    expect(parseComments(body).map((x) => [x.id, x.text])).toEqual([['a', 'one'], ['b', 'two'], ['c', 'three']]);
+    const body =
+      '## Comments\n\n> [!comment|a,2026-01-01T00:00:00.000Z] A\n> one\n> [!comment|b,2026-01-02T00:00:00.000Z] B\n> two\n\n> [!comment|c] C\n> three\n';
+    expect(parseComments(body).map((x) => [x.id, x.text])).toEqual([
+      ['a', 'one'],
+      ['b', 'two'],
+      ['c', 'three'],
+    ]);
   });
 
   it('accepts a hand-written callout without metadata, with a stable derived id', () => {
@@ -54,7 +86,8 @@ describe('parseComments', () => {
   });
 
   it('ignores other callouts and loose text inside the section', () => {
-    const body = '## Comments\n\nmy loose notes\n\n> [!note] Something else\n> not a comment\n\n> [!comment|z] Ana\n> yes\n';
+    const body =
+      '## Comments\n\nmy loose notes\n\n> [!note] Something else\n> not a comment\n\n> [!comment|z] Ana\n> yes\n';
     expect(parseComments(body).map((x) => x.id)).toEqual(['z']);
   });
 
@@ -109,7 +142,8 @@ describe('addCommentToBody', () => {
 });
 
 describe('editCommentInBody / removeCommentFromBody', () => {
-  const base = () => ['\nDesc\n', ...[c('a', 'one'), c('b', 'two'), c('c', 'three')]].reduce<string>((acc, x) => (typeof x === 'string' ? x : addCommentToBody(acc, x)), '');
+  const base = () =>
+    [c('a', 'one'), c('b', 'two'), c('c', 'three')].reduce((acc, x) => addCommentToBody(acc, x), '\nDesc\n');
 
   it('edits only the targeted comment and keeps its header', () => {
     const body = base();
@@ -149,7 +183,22 @@ describe('editCommentInBody / removeCommentFromBody', () => {
 });
 
 describe('toggleTask', () => {
-  const doc = ['Intro', '', '- [x] one', '  - [ ] two (nested)', '1. [ ] three (numbered)', '', '```', '- [ ] this is code', '```', '', '> - [ ] inside a quote', '- [-] custom status', '- [ ]', 'stray [ ] text'].join('\n');
+  const doc = [
+    'Intro',
+    '',
+    '- [x] one',
+    '  - [ ] two (nested)',
+    '1. [ ] three (numbered)',
+    '',
+    '```',
+    '- [ ] this is code',
+    '```',
+    '',
+    '> - [ ] inside a quote',
+    '- [-] custom status',
+    '- [ ]',
+    'stray [ ] text',
+  ].join('\n');
 
   it('flips the n-th task, counting nested, numbered, quoted and custom ones', () => {
     expect(toggleTask(doc, 0)!.split('\n')[2]).toBe('- [ ] one');

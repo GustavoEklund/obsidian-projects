@@ -1,4 +1,12 @@
-import { CARD_TYPES, PRIORITIES, displayColumn, normalizeLabels, toggleTask, type Card, type CardPatch } from '@oprojects/core';
+import {
+  CARD_TYPES,
+  PRIORITIES,
+  displayColumn,
+  normalizeLabels,
+  toggleTask,
+  type Card,
+  type CardPatch,
+} from '@oprojects/core';
 import { t, timeAgo } from '../i18n';
 import { autosize, debounce, h } from './dom';
 import { icon } from './icons';
@@ -48,10 +56,16 @@ export class Drawer {
   private readonly labelsBox = h('div', { class: 'op-labels-input' });
   private readonly labelInput: HTMLInputElement;
   private readonly due = h('input', { class: 'op-input', props: { type: 'date' } });
-  private readonly estimate = h('input', { class: 'op-input', props: { type: 'number', min: '0', step: '0.5', placeholder: '—' } });
+  private readonly estimate = h('input', {
+    class: 'op-input',
+    props: { type: 'number', min: '0', step: '0.5', placeholder: '—' },
+  });
   private readonly parent = h('select', { class: 'op-input' });
   private readonly desc: HTMLTextAreaElement;
-  private readonly preview = h('div', { class: 'op-preview markdown-rendered', attrs: { tabindex: 0, role: 'button', title: t('desc.edit') } });
+  private readonly preview = h('div', {
+    class: 'op-preview markdown-rendered',
+    attrs: { tabindex: 0, role: 'button', title: t('desc.edit') },
+  });
   private readonly tabWrite: HTMLButtonElement;
   private readonly tabPreview: HTMLButtonElement;
   private readonly times = h('div', { class: 'op-times' });
@@ -67,18 +81,30 @@ export class Drawer {
     private readonly sizing: DrawerSizing = { width: null, onWidth: () => {} },
   ) {
     this.comments = new CommentsPanel(host);
-    this.keyBtn = h('button', { class: 'op-key-btn', attrs: { type: 'button' }, on: { click: () => this.card && this.copy(this.card.key) } });
+    this.keyBtn = h('button', {
+      class: 'op-key-btn',
+      attrs: { type: 'button' },
+      on: { click: () => this.card && this.copy(this.card.key) },
+    });
     this.head = h(
       'div',
       { class: 'op-drawer-head' },
       h('span', { class: 'op-drawer-id' }),
       h('span', { class: 'op-spacer' }),
-      this.iconButton('external', t('action.openNote'), (e) => this.card && this.host.openNote(this.card, { newTab: e.ctrlKey || e.metaKey })),
+      this.iconButton(
+        'external',
+        t('action.openNote'),
+        (e) => this.card && this.host.openNote(this.card, { newTab: e.ctrlKey || e.metaKey }),
+      ),
       this.iconButton('trash', t('action.delete'), () => void this.remove(), 'op-danger'),
       this.iconButton('x', t('action.close'), () => this.onClose()),
     );
 
-    this.title = h('textarea', { class: 'op-title-input', props: { rows: 1, placeholder: t('field.title') }, attrs: { 'aria-label': t('field.title') } });
+    this.title = h('textarea', {
+      class: 'op-title-input',
+      props: { rows: 1, placeholder: t('field.title') },
+      attrs: { 'aria-label': t('field.title') },
+    });
     this.title.addEventListener('input', () => autosize(this.title));
     this.title.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -99,17 +125,30 @@ export class Drawer {
       autosize(this.title);
     });
 
-    this.status.addEventListener('change', () => this.card && void this.host.move(this.card.key, this.status.value).catch((e) => this.fail(e)));
+    this.status.addEventListener(
+      'change',
+      () => this.card && void this.host.move(this.card.key, this.status.value).catch((e) => this.fail(e)),
+    );
     this.type.addEventListener('change', () => this.commit({ type: this.type.value as Card['type'] }));
     this.priority.addEventListener('change', () => this.commit({ priority: this.priority.value as Card['priority'] }));
     this.due.addEventListener('change', () => this.commit({ due: this.due.value || null }));
-    this.estimate.addEventListener('change', () => this.commit({ estimate: this.estimate.value === '' ? null : Number(this.estimate.value) }));
+    this.estimate.addEventListener('change', () =>
+      this.commit({ estimate: this.estimate.value === '' ? null : Number(this.estimate.value) }),
+    );
     this.parent.addEventListener('change', () => this.commit({ parent: this.parent.value || null }));
 
-    this.assignee = h('input', { class: 'op-input', props: { type: 'text', placeholder: t('assignee.placeholder'), autocomplete: 'off' }, attrs: { list: this.members.id } });
+    this.assignee = h('input', {
+      class: 'op-input',
+      props: { type: 'text', placeholder: t('assignee.placeholder'), autocomplete: 'off' },
+      attrs: { list: this.members.id },
+    });
     this.assignee.addEventListener('change', () => this.commit({ assignee: this.assignee.value.trim() || null }));
 
-    this.labelInput = h('input', { class: 'op-label-field', props: { type: 'text', placeholder: t('label.add'), autocomplete: 'off' }, attrs: { list: this.knownLabels.id, 'aria-label': t('field.labels') } });
+    this.labelInput = h('input', {
+      class: 'op-label-field',
+      props: { type: 'text', placeholder: t('label.add'), autocomplete: 'off' },
+      attrs: { list: this.knownLabels.id, 'aria-label': t('field.labels') },
+    });
     this.labelInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
@@ -121,7 +160,11 @@ export class Drawer {
     this.labelInput.addEventListener('blur', () => this.addLabels());
 
     this.saveDesc = debounce(() => this.commitDescription(), 700);
-    this.desc = h('textarea', { class: 'op-desc', props: { placeholder: t('desc.placeholder'), rows: 6 }, attrs: { 'aria-label': t('field.description'), spellcheck: 'true' } });
+    this.desc = h('textarea', {
+      class: 'op-desc',
+      props: { placeholder: t('desc.placeholder'), rows: 6 },
+      attrs: { 'aria-label': t('field.description'), spellcheck: 'true' },
+    });
     this.desc.addEventListener('input', () => {
       autosize(this.desc);
       this.saveDesc();
@@ -154,10 +197,26 @@ export class Drawer {
       this.setTab('write', true);
     });
 
-    this.tabWrite = h('button', { class: 'op-tab', text: t('desc.write'), attrs: { type: 'button' }, on: { click: () => this.setTab('write', true) } });
-    this.tabPreview = h('button', { class: 'op-tab is-on', text: t('desc.preview'), attrs: { type: 'button' }, on: { click: () => this.setTab('preview') } });
+    this.tabWrite = h('button', {
+      class: 'op-tab',
+      text: t('desc.write'),
+      attrs: { type: 'button' },
+      on: { click: () => this.setTab('write', true) },
+    });
+    this.tabPreview = h('button', {
+      class: 'op-tab is-on',
+      text: t('desc.preview'),
+      attrs: { type: 'button' },
+      on: { click: () => this.setTab('preview') },
+    });
 
-    const row = (label: string, control: Node) => h('div', { class: 'op-field' }, h('label', { class: 'op-field-label', text: label }), h('div', { class: 'op-field-control' }, control));
+    const row = (label: string, control: Node) =>
+      h(
+        'div',
+        { class: 'op-field' },
+        h('label', { class: 'op-field-label', text: label }),
+        h('div', { class: 'op-field-control' }, control),
+      );
 
     this.el = h(
       'aside',
@@ -180,7 +239,14 @@ export class Drawer {
           row(t('field.estimate'), this.estimate),
           row(t('field.epic'), this.parent),
         ),
-        h('div', { class: 'op-desc-head' }, h('span', { class: 'op-section-title', text: t('field.description') }), h('span', { class: 'op-spacer' }), this.tabWrite, this.tabPreview),
+        h(
+          'div',
+          { class: 'op-desc-head' },
+          h('span', { class: 'op-section-title', text: t('field.description') }),
+          h('span', { class: 'op-spacer' }),
+          this.tabWrite,
+          this.tabPreview,
+        ),
         this.desc,
         this.preview,
         this.comments.el,
@@ -206,7 +272,13 @@ export class Drawer {
   private resizer(): HTMLElement {
     const handle = h('div', {
       class: 'op-drawer-resizer',
-      attrs: { role: 'separator', 'aria-orientation': 'vertical', 'aria-label': t('drawer.resize'), title: t('drawer.resize'), tabindex: 0 },
+      attrs: {
+        role: 'separator',
+        'aria-orientation': 'vertical',
+        'aria-label': t('drawer.resize'),
+        title: t('drawer.resize'),
+        tabindex: 0,
+      },
     });
     let startX = 0;
     let startWidth = 0;
@@ -328,19 +400,32 @@ export class Drawer {
     // Option lists only change with the config / known cards; rebuilding on every keystroke elsewhere would reset open selects.
     const epics = all.filter((c) => c.type === 'epic' && c.key !== card.key);
     const parentKnown = !card.parent || epics.some((e) => e.key === card.parent);
-    const sig = [config.columns.map((c) => `${c.id}:${c.name}`).join('|'), epics.map((e) => `${e.key}:${e.title}`).join('|'), card.parent ?? '', parentKnown].join('#');
+    const sig = [
+      config.columns.map((c) => `${c.id}:${c.name}`).join('|'),
+      epics.map((e) => `${e.key}:${e.title}`).join('|'),
+      card.parent ?? '',
+      parentKnown,
+    ].join('#');
     if (sig !== this.optionsSig) {
       this.optionsSig = sig;
       this.status.replaceChildren(...config.columns.map((c) => h('option', { text: c.name, props: { value: c.id } })));
       this.type.replaceChildren(...CARD_TYPES.map((x) => h('option', { text: t(`type.${x}`), props: { value: x } })));
-      this.priority.replaceChildren(...PRIORITIES.map((x) => h('option', { text: t(`priority.${x}`), props: { value: x } })));
+      this.priority.replaceChildren(
+        ...PRIORITIES.map((x) => h('option', { text: t(`priority.${x}`), props: { value: x } })),
+      );
       this.parent.replaceChildren(
         h('option', { text: t('none'), props: { value: '' } }),
         ...epics.map((e) => h('option', { text: `${e.key} · ${e.title}`, props: { value: e.key } })),
         ...(parentKnown ? [] : [h('option', { text: card.parent!, props: { value: card.parent! } })]),
       );
-      this.members.replaceChildren(...[...new Set([...config.members, ...all.map((c) => c.assignee).filter((a): a is string => !!a)])].sort().map((m) => h('option', { props: { value: m } })));
-      this.knownLabels.replaceChildren(...[...new Set(all.flatMap((c) => c.labels))].sort().map((l) => h('option', { props: { value: l } })));
+      this.members.replaceChildren(
+        ...[...new Set([...config.members, ...all.map((c) => c.assignee).filter((a): a is string => !!a)])]
+          .sort()
+          .map((m) => h('option', { props: { value: m } })),
+      );
+      this.knownLabels.replaceChildren(
+        ...[...new Set(all.flatMap((c) => c.labels))].sort().map((l) => h('option', { props: { value: l } })),
+      );
     }
     this.status.value = displayColumn(config, card.status).id;
     this.type.value = card.type;
@@ -358,7 +443,10 @@ export class Drawer {
     this.comments.bind(card);
 
     const now = this.host.now();
-    this.times.textContent = [t('time.created', { when: timeAgo(card.created, now) }), t('time.updated', { when: timeAgo(card.updated, now) })].join(' · ');
+    this.times.textContent = [
+      t('time.created', { when: timeAgo(card.created, now) }),
+      t('time.updated', { when: timeAgo(card.updated, now) }),
+    ].join(' · ');
   }
 
   /** Update a control from data unless the user is typing in it right now. */
@@ -374,7 +462,15 @@ export class Drawer {
           'span',
           { class: 'op-label op-label-edit' },
           l,
-          h('button', { class: 'op-label-x', attrs: { type: 'button', 'aria-label': `${t('label.remove')}: ${l}`, title: t('label.remove') }, on: { click: () => this.commit({ labels: card.labels.filter((x) => x !== l) }) } }, icon('x', 10)),
+          h(
+            'button',
+            {
+              class: 'op-label-x',
+              attrs: { type: 'button', 'aria-label': `${t('label.remove')}: ${l}`, title: t('label.remove') },
+              on: { click: () => this.commit({ labels: card.labels.filter((x) => x !== l) }) },
+            },
+            icon('x', 10),
+          ),
         ),
       ),
       this.labelInput,
@@ -485,7 +581,20 @@ export class Drawer {
     }
   }
 
-  private iconButton(name: Parameters<typeof icon>[0], label: string, onClick: (e: MouseEvent) => void, extra = ''): HTMLButtonElement {
-    return h('button', { class: `op-icon-btn ${extra}`.trim(), attrs: { type: 'button', 'aria-label': label, title: label }, on: { click: onClick } }, icon(name, 16));
+  private iconButton(
+    name: Parameters<typeof icon>[0],
+    label: string,
+    onClick: (e: MouseEvent) => void,
+    extra = '',
+  ): HTMLButtonElement {
+    return h(
+      'button',
+      {
+        class: `op-icon-btn ${extra}`.trim(),
+        attrs: { type: 'button', 'aria-label': label, title: label },
+        on: { click: onClick },
+      },
+      icon(name, 16),
+    );
   }
 }

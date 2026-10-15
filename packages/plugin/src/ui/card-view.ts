@@ -29,7 +29,11 @@ export const epicHue = (key: string): number => epicHues.get(key) ?? hueOf(key);
 export function formatDue(date: string, now: Date): string {
   const [y, m, d] = date.split('-').map(Number) as [number, number, number];
   const when = new Date(y, m - 1, d);
-  return new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short', ...(y !== now.getFullYear() ? { year: 'numeric' as const } : {}) }).format(when);
+  return new Intl.DateTimeFormat(getLocale(), {
+    day: 'numeric',
+    month: 'short',
+    ...(y !== now.getFullYear() ? { year: 'numeric' as const } : {}),
+  }).format(when);
 }
 
 /**
@@ -61,15 +65,28 @@ export function createCardEl(key: string): HTMLDivElement {
 }
 
 export function typeBadge(type: Card['type'], size = 16): HTMLElement {
-  return h('span', { class: `op-type op-type-${type}`, attrs: { title: t(`type.${type}`) }, style: { '--op-size': `${size}px` } }, icon(typeIcon(type), Math.round(size * 0.72)));
+  return h(
+    'span',
+    { class: `op-type op-type-${type}`, attrs: { title: t(`type.${type}`) }, style: { '--op-size': `${size}px` } },
+    icon(typeIcon(type), Math.round(size * 0.72)),
+  );
 }
 
 export function priorityMark(priority: Card['priority']): HTMLElement {
-  return h('span', { class: `op-prio op-prio-${priority}`, attrs: { title: t(`priority.${priority}`) } }, icon(priorityIcon(priority), 14));
+  return h(
+    'span',
+    { class: `op-prio op-prio-${priority}`, attrs: { title: t(`priority.${priority}`) } },
+    icon(priorityIcon(priority), 14),
+  );
 }
 
 export function avatar(name: string, size = 22): HTMLElement {
-  return h('span', { class: 'op-avatar', text: initials(name), attrs: { title: name }, style: { '--op-hue': personHue(name), '--op-size': `${size}px` } });
+  return h('span', {
+    class: 'op-avatar',
+    text: initials(name),
+    attrs: { title: name },
+    style: { '--op-hue': personHue(name), '--op-size': `${size}px` },
+  });
 }
 
 export function fillCardEl(el: HTMLElement, card: Card, ctx: CardCtx): void {
@@ -82,24 +99,49 @@ export function fillCardEl(el: HTMLElement, card: Card, ctx: CardCtx): void {
   const epic = card.parent ? ctx.byKey.get(card.parent) : undefined;
   const metaRow: Node[] = [];
   if (card.parent) {
-    metaRow.push(h('span', { class: 'op-epic', text: epic?.title ?? card.parent, attrs: { title: `${card.parent}${epic ? `: ${epic.title}` : ''}` }, style: { '--op-hue': epicHue(card.parent) } }));
+    metaRow.push(
+      h('span', {
+        class: 'op-epic',
+        text: epic?.title ?? card.parent,
+        attrs: { title: `${card.parent}${epic ? `: ${epic.title}` : ''}` },
+        style: { '--op-hue': epicHue(card.parent) },
+      }),
+    );
   }
   for (const label of card.labels.slice(0, MAX_LABELS)) metaRow.push(h('span', { class: 'op-label', text: label }));
-  if (card.labels.length > MAX_LABELS) metaRow.push(h('span', { class: 'op-label op-label-more', text: `+${card.labels.length - MAX_LABELS}`, attrs: { title: card.labels.slice(MAX_LABELS).join(', ') } }));
+  if (card.labels.length > MAX_LABELS)
+    metaRow.push(
+      h('span', {
+        class: 'op-label op-label-more',
+        text: `+${card.labels.length - MAX_LABELS}`,
+        attrs: { title: card.labels.slice(MAX_LABELS).join(', ') },
+      }),
+    );
   if (metaRow.length) children.push(h('div', { class: 'op-card-meta' }, ...metaRow));
 
   const state = dueState(card, ctx.config, ctx.now);
   const right: Node[] = [];
   if (card.comments.length) {
-    const label = card.comments.length === 1 ? t('comment.count.one') : t('comment.count.many', { n: card.comments.length });
-    right.push(h('span', { class: 'op-chip op-chip-comments', attrs: { title: label } }, icon('message', 12), String(card.comments.length)));
+    const label =
+      card.comments.length === 1 ? t('comment.count.one') : t('comment.count.many', { n: card.comments.length });
+    right.push(
+      h(
+        'span',
+        { class: 'op-chip op-chip-comments', attrs: { title: label } },
+        icon('message', 12),
+        String(card.comments.length),
+      ),
+    );
   }
   if (card.checklist.total) {
     const complete = card.checklist.done === card.checklist.total;
     right.push(
       h(
         'span',
-        { class: `op-chip op-chip-check${complete ? ' op-chip-ok' : ''}`, attrs: { title: t('checklist.title', { done: card.checklist.done, total: card.checklist.total }) } },
+        {
+          class: `op-chip op-chip-check${complete ? ' op-chip-ok' : ''}`,
+          attrs: { title: t('checklist.title', { done: card.checklist.done, total: card.checklist.total }) },
+        },
         icon('checklist', 12),
         `${card.checklist.done}/${card.checklist.total}`,
       ),
@@ -107,13 +149,37 @@ export function fillCardEl(el: HTMLElement, card: Card, ctx: CardCtx): void {
   }
   if (card.due) {
     const label = state === 'overdue' ? t('due.overdue') : state === 'soon' ? t('due.soon') : '';
-    right.push(h('span', { class: `op-chip op-due op-due-${state ?? 'later'}`, attrs: { title: label ? `${label}: ${card.due}` : card.due } }, icon('calendar', 12), formatDue(card.due, ctx.now)));
+    right.push(
+      h(
+        'span',
+        {
+          class: `op-chip op-due op-due-${state ?? 'later'}`,
+          attrs: { title: label ? `${label}: ${card.due}` : card.due },
+        },
+        icon('calendar', 12),
+        formatDue(card.due, ctx.now),
+      ),
+    );
   }
-  if (card.estimate !== undefined) right.push(h('span', { class: 'op-estimate', text: String(card.estimate), attrs: { title: `${t('field.estimate')}: ${card.estimate}` } }));
+  if (card.estimate !== undefined)
+    right.push(
+      h('span', {
+        class: 'op-estimate',
+        text: String(card.estimate),
+        attrs: { title: `${t('field.estimate')}: ${card.estimate}` },
+      }),
+    );
   right.push(priorityMark(card.priority));
   if (card.assignee) right.push(avatar(card.assignee));
   // Two groups: on a narrow card the right group wraps to its own line instead of overflowing.
-  children.push(h('div', { class: 'op-card-foot' }, h('div', { class: 'op-foot-left' }, typeBadge(card.type), h('span', { class: 'op-key', text: card.key })), h('div', { class: 'op-foot-right' }, ...right)));
+  children.push(
+    h(
+      'div',
+      { class: 'op-card-foot' },
+      h('div', { class: 'op-foot-left' }, typeBadge(card.type), h('span', { class: 'op-key', text: card.key })),
+      h('div', { class: 'op-foot-right' }, ...right),
+    ),
+  );
 
   el.replaceChildren(...children);
 }

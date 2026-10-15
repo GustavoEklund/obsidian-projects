@@ -1,4 +1,4 @@
-import { isMap, parseDocument, type Document } from 'yaml';
+import { isMap, isScalar, parseDocument, type Document } from 'yaml';
 
 export interface Split {
   /** Raw YAML between the `---` fences, or null when the note has none. */
@@ -38,6 +38,12 @@ function setValue(doc: Document, key: string, value: unknown): void {
     (node as { flow?: boolean }).flow = true;
     doc.set(key, node);
   } else {
+    // `doc.set` reuses the existing node (so a comment on the value's line survives), and with it the style the
+    // value was written in. A block scalar (`|`, `>`) cannot hold some new text, such as one made only of spaces,
+    // which would be written and read back as an empty string: drop the style and let the writer pick one that can.
+    const existing = doc.get(key, true);
+    if (isScalar(existing) && (existing.type === 'BLOCK_LITERAL' || existing.type === 'BLOCK_FOLDED'))
+      existing.type = undefined;
     doc.set(key, value);
   }
 }
@@ -53,14 +59,20 @@ export function patchFrontmatter(content: string, patch: FrontmatterPatch, body?
   if (doc.errors.length) throw new Error(`Invalid frontmatter: ${doc.errors[0]!.message}`);
   // Empty frontmatter (null contents) is fine: `doc.set` creates the map. Anything else that
   // is not a map would be destroyed by a rewrite, so refuse instead.
-  if (doc.contents !== null && !isMap(doc.contents)) throw new Error('Invalid frontmatter: expected `key: value` pairs');
+  if (doc.contents !== null && !isMap(doc.contents))
+    throw new Error('Invalid frontmatter: expected `key: value` pairs');
 
   for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined || value === null) doc.delete(key);
-    else setValue(doc, key, value);
+    if (value === undefined || value === null) {
+      if (doc.contents !== null) doc.delete(key); // nothing to remove from an empty block
+    } else setValue(doc, key, value);
   }
 
-  const yaml = String(doc).trimEnd();
+  // A document with nothing in it would print as "null" (or "{}" once its last key is removed): write an empty
+  // block instead. Only the final newline goes: `trimEnd()` would also eat a trailing no-break space that
+  // belongs to the last value.
+  const empty = doc.contents === null || (isMap(doc.contents) && doc.contents.items.length === 0);
+  const yaml = empty ? '' : String(doc).replace(/\n+$/, '');
   const nextBody = body ?? split.body;
-  return `---\n${yaml}\n---\n${nextBody}`;
+  return yaml ? `---\n${yaml}\n---\n${nextBody}` : `---\n---\n${nextBody}`;
 }

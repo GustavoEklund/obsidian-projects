@@ -22,8 +22,16 @@ export interface Composer {
  */
 export function createComposer(hooks: ComposerHooks): Composer {
   let busy = false;
-  const input = h('textarea', { class: 'op-composer-input', props: { rows: 2, placeholder: t('composer.placeholder') }, attrs: { 'aria-label': t('composer.placeholder') } });
-  const type = h('select', { class: 'op-input op-composer-type', attrs: { 'aria-label': t('field.type') } }, ...CARD_TYPES.map((x) => h('option', { text: t(`type.${x}`), props: { value: x } })));
+  const input = h('textarea', {
+    class: 'op-composer-input',
+    props: { rows: 2, placeholder: t('composer.placeholder') },
+    attrs: { 'aria-label': t('composer.placeholder') },
+  });
+  const type = h(
+    'select',
+    { class: 'op-input op-composer-type', attrs: { 'aria-label': t('field.type') } },
+    ...CARD_TYPES.map((x) => h('option', { text: t(`type.${x}`), props: { value: x } })),
+  );
   type.value = hooks.type;
   type.addEventListener('change', () => hooks.onType(type.value as CardType));
 
@@ -37,6 +45,9 @@ export function createComposer(hooks: ComposerHooks): Composer {
       await hooks.submit(title, rest.join('\n').trim(), type.value as CardType);
       input.value = '';
       autosize(input);
+    } catch {
+      // The caller has already told the user what went wrong. Keep the text so nothing typed is lost;
+      // letting the rejection escape would only surface as an unhandled promise rejection.
     } finally {
       busy = false;
       input.focus();
@@ -65,8 +76,18 @@ export function createComposer(hooks: ComposerHooks): Composer {
       { class: 'op-composer-row' },
       type,
       h('span', { class: 'op-spacer' }),
-      h('button', { class: 'op-btn', text: t('composer.cancel'), attrs: { type: 'button' }, on: { click: () => hooks.cancel() } }),
-      h('button', { class: 'op-btn-primary', text: t('create'), attrs: { type: 'button' }, on: { click: () => void submit() } }),
+      h('button', {
+        class: 'op-btn',
+        text: t('composer.cancel'),
+        attrs: { type: 'button' },
+        on: { click: () => hooks.cancel() },
+      }),
+      h('button', {
+        class: 'op-btn-primary',
+        text: t('create'),
+        attrs: { type: 'button' },
+        on: { click: () => void submit() },
+      }),
     ),
   );
   return { el, focus: () => input.focus() };

@@ -6,21 +6,25 @@ const circularDistance = (a: number, b: number) => Math.min(Math.abs(a - b), 360
 describe('hueOf', () => {
   it('is stable and within 0–359', () => {
     expect(hueOf('OP-1')).toBe(hueOf('OP-1'));
-    for (const s of ['', 'a', 'OP-12', 'Ana', 'Zoë']) expect(hueOf(s)).toBeGreaterThanOrEqual(0), expect(hueOf(s)).toBeLessThan(360);
+    for (const s of ['', 'a', 'OP-12', 'Ana', 'Zoë']) {
+      expect(hueOf(s)).toBeGreaterThanOrEqual(0);
+      expect(hueOf(s)).toBeLessThan(360);
+    }
   });
 
   it('gives sequential epic keys clearly different colors', () => {
     const hues = ['OP-1', 'OP-2', 'OP-3'].map(hueOf);
-    for (let i = 0; i < hues.length; i++) for (let j = i + 1; j < hues.length; j++) expect(circularDistance(hues[i]!, hues[j]!)).toBeGreaterThan(25);
+    for (let i = 0; i < hues.length; i++)
+      for (let j = i + 1; j < hues.length; j++) expect(circularDistance(hues[i]!, hues[j]!)).toBeGreaterThan(25);
   });
-
 });
 
 describe('distinctHues', () => {
   const minGap = (m: Map<string, number>) => {
     const v = [...m.values()];
     let gap = 360;
-    for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) gap = Math.min(gap, circularDistance(v[i]!, v[j]!));
+    for (let i = 0; i < v.length; i++)
+      for (let j = i + 1; j < v.length; j++) gap = Math.min(gap, circularDistance(v[i]!, v[j]!));
     return gap;
   };
 
@@ -40,7 +44,10 @@ describe('distinctHues', () => {
     const many = Array.from({ length: 30 }, (_, i) => `person-${i}`);
     const hues = distinctHues(many);
     expect(hues.size).toBe(30);
-    for (const h of hues.values()) expect(h).toBeGreaterThanOrEqual(0), expect(h).toBeLessThan(360);
+    for (const h of hues.values()) {
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+    }
   });
 });
 

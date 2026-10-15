@@ -25,8 +25,8 @@ describe('rankBetween', () => {
   });
 
   it('rejects inverted or equal bounds', () => {
-    expect(() => rankBetween('b', 'a')).toThrow();
-    expect(() => rankBetween('a', 'a')).toThrow();
+    expect(() => rankBetween('b', 'a')).toThrow('must sort before');
+    expect(() => rankBetween('a', 'a')).toThrow('must sort before');
   });
 
   it('never produces a trailing zero or invalid digit', () => {
@@ -40,7 +40,7 @@ describe('rankBetween', () => {
   it('keeps a strict total order under random insertions at random positions', () => {
     // Deterministic PRNG so a failure is reproducible.
     let seed = 42;
-    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+    const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
     const list: string[] = [];
     for (let i = 0; i < 2000; i++) {
       const at = Math.floor(rnd() * (list.length + 1));
@@ -61,12 +61,14 @@ describe('rankBetween', () => {
   it('keeps ranks reasonable when always inserting at the very top', () => {
     let top: string | null = null;
     let longest = 0;
+    const ranks: string[] = [];
     for (let i = 0; i < 200; i++) {
       const next: string = rankBetween(null, top);
-      if (top !== null) expect(next < top).toBe(true);
+      ranks.push(next);
       top = next;
       longest = Math.max(longest, next.length);
     }
+    expect(isStrictlyAscending([...ranks].reverse())).toBe(true); // each new top sorts before the previous one
     expect(longest).toBeLessThan(60);
   });
 });

@@ -37,7 +37,10 @@ const platform: Platform = {
       modal.textContent = message;
       const actions = document.createElement('div');
       actions.className = 'hx-modal-actions';
-      for (const [text, value] of [['Cancel', false], [label, true]] as const) {
+      for (const [text, value] of [
+        ['Cancel', false],
+        [label, true],
+      ] as const) {
         const b = document.createElement('button');
         b.textContent = text;
         b.onclick = () => done(value);
@@ -60,7 +63,10 @@ const platform: Platform = {
       }
       const b = document.createElement('button');
       if (e.danger) b.className = 'danger';
-      const check = Object.assign(document.createElement('span'), { className: 'hx-check', textContent: e.checked ? '✓' : '' });
+      const check = Object.assign(document.createElement('span'), {
+        className: 'hx-check',
+        textContent: e.checked ? '✓' : '',
+      });
       b.append(check, e.label ?? '');
       b.onclick = () => {
         closeMenus();
@@ -83,7 +89,10 @@ const platform: Platform = {
   // Just enough Markdown to judge the preview tab.
   renderMarkdown: (target, md) => {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    const inline = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`(.+?)`/g, '<code>$1</code>');
+    const inline = (s: string) =>
+      esc(s)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.+?)`/g, '<code>$1</code>');
     target.innerHTML = md
       .split('\n')
       .map((line) => {

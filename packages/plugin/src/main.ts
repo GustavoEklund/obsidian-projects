@@ -18,7 +18,10 @@ interface PluginData {
 /** Newer Obsidian builds renamed the kanban icon; take whichever exists. */
 function pickIcon(): string {
   const ids = new Set<string>(getIconIds());
-  return ['square-kanban', 'kanban-square', 'layout-dashboard'].find((id) => ids.has(`lucide-${id}`) || ids.has(id)) ?? 'layout-dashboard';
+  return (
+    ['square-kanban', 'kanban-square', 'layout-dashboard'].find((id) => ids.has(`lucide-${id}`) || ids.has(id)) ??
+    'layout-dashboard'
+  );
 }
 
 class CardPicker extends FuzzySuggestModal<Card> {

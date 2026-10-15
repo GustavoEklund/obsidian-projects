@@ -45,7 +45,10 @@ export class MemoryStorage implements Storage {
     this.files.set(path, content);
   }
   async modify(path: string, fn: (content: string) => string): Promise<string> {
-    const next = fn(await this.read(path));
+    // No `await` between reading and writing: that is what makes the read-modify-write atomic.
+    const current = this.files.get(path);
+    if (current === undefined) throw new NotFoundError(path);
+    const next = fn(current);
     this.files.set(path, next);
     return next;
   }

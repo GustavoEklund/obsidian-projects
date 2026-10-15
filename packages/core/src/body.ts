@@ -95,7 +95,7 @@ function findBlocks(lines: string[], from: number): Block[] {
 
     const text = lines
       .slice(i + 1, end)
-      .map((l) => stripCr(l).replace(/^>[ ]?/, ''))
+      .map((l) => unescapeMarker(stripCr(l).replace(/^>[ ]?/, '')))
       .join('\n')
       .replace(/\s+$/, '');
     const [idPart = '', atPart = ''] = (head[1] ?? '').split(',').map((s) => s.trim());
@@ -133,12 +133,29 @@ function stamp(iso: string): string {
 }
 
 export function cleanAuthor(author: string): string {
-  return author.replace(/[\r\n]+/g, ' ').replace(/[\[\]]/g, '').replace(/\s*·\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  return author
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[[\]]/g, '')
+    .replace(/\s*·\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
+
+// A text line that itself starts with `[!comment…]` would be taken for the header of another comment (and invent
+// one). It is written with one extra backslash before the `[`, which Markdown renders identically, and read back
+// without it. Counting the backslashes keeps the round trip exact for text that already had some.
+const MARKER_LINE_RE = /^([ \t]*)(\\*)(\[!comment)/i;
+const ESCAPED_MARKER_LINE_RE = /^([ \t]*)\\(\\*)(\[!comment)/i;
+const escapeMarker = (line: string): string => line.replace(MARKER_LINE_RE, '$1$2\\$3');
+const unescapeMarker = (line: string): string => line.replace(ESCAPED_MARKER_LINE_RE, '$1$2$3');
 
 /** Text lines of a comment as callout continuation lines (`> text`, empty line -> `>`). */
 function quote(text: string): string[] {
-  return text.replace(/\r\n/g, '\n').replace(/\s+$/, '').split('\n').map((l) => (l.trim() ? `> ${l}` : '>'));
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+$/, '')
+    .split('\n')
+    .map((l) => (l.trim() ? `> ${escapeMarker(l)}` : '>'));
 }
 
 /** The callout block for one comment (no trailing newline). */
@@ -179,7 +196,8 @@ export function removeCommentFromBody(body: string, id: string): string | null {
   if (!block) return null;
   let start = block.start;
   // Also take the blank line that separated it from the previous block.
-  if (start > 0 && lines[start - 1]!.trim() === '' && (block.end >= lines.length || lines[block.end]!.trim() === '')) start--;
+  if (start > 0 && lines[start - 1]!.trim() === '' && (block.end >= lines.length || lines[block.end]!.trim() === ''))
+    start--;
   lines.splice(start, block.end - start);
   if (lines.slice(h + 1).every((l) => l.trim() === '')) {
     const description = lines.slice(0, h).join('\n');
@@ -213,7 +231,10 @@ export function toggleTask(markdown: string, index: number): string | null {
     }
     if (fence !== null || !TASK_RE.test(lines[i]!)) continue;
     if (++seen !== index) continue;
-    lines[i] = lines[i]!.replace(TASK_RE, (_m, head: string, status: string, tail: string) => `${head}${status === ' ' ? 'x' : ' '}${tail}`);
+    lines[i] = lines[i]!.replace(
+      TASK_RE,
+      (_m, head: string, status: string, tail: string) => `${head}${status === ' ' ? 'x' : ' '}${tail}`,
+    );
     return lines.join('\n');
   }
   return null;

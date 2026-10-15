@@ -1,6 +1,17 @@
 import { dueState, groupByColumn, type BoardConfig, type Card, type CardType, type Priority } from '@oprojects/core';
 
-const CODES = { reset: 0, bold: 1, dim: 2, red: 31, green: 32, yellow: 33, blue: 34, magenta: 35, cyan: 36, gray: 90 } as const;
+const CODES = {
+  reset: 0,
+  bold: 1,
+  dim: 2,
+  red: 31,
+  green: 32,
+  yellow: 33,
+  blue: 34,
+  magenta: 35,
+  cyan: 36,
+  gray: 90,
+} as const;
 export type Style = keyof typeof CODES;
 
 export interface Painter {
@@ -103,10 +114,18 @@ export function renderTable(cards: Card[], config: BoardConfig, paint: Painter, 
         paint('cyan', pad(statusName(c, config), statusW)),
       ];
       if (asgW) parts.push(pad(truncate(c.assignee ?? '', asgW), asgW));
-      if (dueW) parts.push(c.due ? dueText(c, config, now, paint) + ' '.repeat(Math.max(0, dueW - [...shortDate(c.due, now)].length)) : ' '.repeat(dueW));
+      if (dueW)
+        parts.push(
+          c.due
+            ? dueText(c, config, now, paint) + ' '.repeat(Math.max(0, dueW - [...shortDate(c.due, now)].length))
+            : ' '.repeat(dueW),
+        );
       const checklist = c.checklist.total ? paint('gray', ` ${c.checklist.done}/${c.checklist.total}`) : '';
       const labels = c.labels.length ? paint('gray', ` #${c.labels.join(' #')}`) : '';
-      const title = truncate(c.title, titleW - [...(c.checklist.total ? ` ${c.checklist.done}/${c.checklist.total}` : '')].length);
+      const title = truncate(
+        c.title,
+        titleW - [...(c.checklist.total ? ` ${c.checklist.done}/${c.checklist.total}` : '')].length,
+      );
       return `${parts.join(' ')} ${title}${checklist}${labels}`;
     })
     .join('\n');
@@ -132,7 +151,10 @@ export function renderBoard(cards: Card[], config: BoardConfig, paint: Painter, 
     const count = column.wip ? `${list.length}/${column.wip}` : String(list.length);
     const title = truncate(column.name.toUpperCase(), w - count.length - 3);
     const head = paint(['bold', column.done ? 'green' : 'cyan'], title) + ' ' + paint(over ? 'red' : 'gray', count);
-    const out: Cell[] = [{ text: head, len: [...title].length + 1 + count.length }, { text: paint('gray', '─'.repeat(w)), len: w }];
+    const out: Cell[] = [
+      { text: head, len: [...title].length + 1 + count.length },
+      { text: paint('gray', '─'.repeat(w)), len: w },
+    ];
     for (const c of list) {
       const idLine = `${typeGlyph(c.type, paint)} ${paint('bold', c.key)} ${priorityGlyph(c.priority, paint)}`;
       const idLen = 1 + 1 + c.key.length + 1 + 2;
@@ -145,7 +167,11 @@ export function renderBoard(cards: Card[], config: BoardConfig, paint: Painter, 
       };
       if (c.assignee) push(paint('magenta', '@' + truncate(c.assignee, 12)), 1 + Math.min(12, [...c.assignee].length));
       if (c.due) push(dueText(c, config, now, paint), [...shortDate(c.due, now)].length);
-      if (c.checklist.total) push(paint('gray', `${c.checklist.done}/${c.checklist.total}`), `${c.checklist.done}/${c.checklist.total}`.length);
+      if (c.checklist.total)
+        push(
+          paint('gray', `${c.checklist.done}/${c.checklist.total}`),
+          `${c.checklist.done}/${c.checklist.total}`.length,
+        );
       out.push({ text: idLine, len: idLen });
       for (const l of wrap(c.title, w, 2)) out.push(plain(l));
       if (meta.length) out.push({ text: meta.join(' '), len: metaLen });
@@ -185,7 +211,8 @@ function commentTime(iso: string): string {
 export function renderCard(card: Card, config: BoardConfig, paint: Painter, now: Date): string {
   const lines: string[] = [];
   lines.push(`${typeGlyph(card.type, paint)} ${paint('bold', card.key)}  ${paint('bold', card.title)}`);
-  const field = (label: string, value: string | undefined) => value && lines.push(`${paint('gray', pad(label, 10))}${value}`);
+  const field = (label: string, value: string | undefined) =>
+    value && lines.push(`${paint('gray', pad(label, 10))}${value}`);
   field('Status', paint('cyan', statusName(card, config)));
   field('Priority', `${priorityGlyph(card.priority, paint)} ${card.priority}`);
   field('Type', card.type);

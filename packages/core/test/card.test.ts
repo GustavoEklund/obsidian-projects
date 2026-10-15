@@ -30,7 +30,10 @@ describe('parseCard', () => {
   });
 
   it('degrades gracefully on hand-edited values', () => {
-    const c = parseCard('Cards/OP-2.md', '---\nkey: op-2\ntype: wizard\npriority: urgent\ndue: soon\nlabels: "a, #b, c d"\nparent: banana\n---\n')!;
+    const c = parseCard(
+      'Cards/OP-2.md',
+      '---\nkey: op-2\ntype: wizard\npriority: urgent\ndue: soon\nlabels: "a, #b, c d"\nparent: banana\n---\n',
+    )!;
     expect(c.key).toBe('OP-2');
     expect(c.title).toBe('OP-2');
     expect(c.type).toBe('task');
@@ -66,11 +69,28 @@ describe('helpers', () => {
 });
 
 describe('applyPatch', () => {
-  const base = parseCard('Cards/OP-1.md', '---\nkey: OP-1\ntitle: A\nassignee: Ana\ndue: 2026-10-20\nlabels: [x]\n---\n- [ ] one\n')!;
+  const base = parseCard(
+    'Cards/OP-1.md',
+    '---\nkey: OP-1\ntitle: A\nassignee: Ana\ndue: 2026-10-20\nlabels: [x]\n---\n- [ ] one\n',
+  )!;
   it('applies and clears fields like the service would', async () => {
     const { applyPatch } = await import('../src/card');
-    const next = applyPatch(base, { title: '  New   title ', assignee: null, due: null, labels: ['b c', 'b-c'], body: '- [x] a\n- [x] b\n', parent: 'op-9' });
-    expect(next).toMatchObject({ title: 'New title', assignee: undefined, due: undefined, labels: ['b-c'], parent: 'OP-9', checklist: { done: 2, total: 2 } });
+    const next = applyPatch(base, {
+      title: '  New   title ',
+      assignee: null,
+      due: null,
+      labels: ['b c', 'b-c'],
+      body: '- [x] a\n- [x] b\n',
+      parent: 'op-9',
+    });
+    expect(next).toMatchObject({
+      title: 'New title',
+      assignee: undefined,
+      due: undefined,
+      labels: ['b-c'],
+      parent: 'OP-9',
+      checklist: { done: 2, total: 2 },
+    });
     expect(base.title).toBe('A'); // original untouched
   });
 });

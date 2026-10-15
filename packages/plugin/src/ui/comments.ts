@@ -26,7 +26,11 @@ export class CommentsPanel {
   private readonly post: HTMLButtonElement;
 
   constructor(private readonly host: BoardHost) {
-    this.input = h('textarea', { class: 'op-comment-input', props: { rows: 2, placeholder: t('comment.placeholder') }, attrs: { 'aria-label': t('comment.placeholder') } });
+    this.input = h('textarea', {
+      class: 'op-comment-input',
+      props: { rows: 2, placeholder: t('comment.placeholder') },
+      attrs: { 'aria-label': t('comment.placeholder') },
+    });
     this.input.addEventListener('input', () => {
       autosize(this.input);
       if (this.card) this.drafts.set(this.card.key, this.input.value);
@@ -38,14 +42,30 @@ export class CommentsPanel {
         void this.submit();
       }
     });
-    this.post = h('button', { class: 'op-btn-primary', text: t('comment.post'), attrs: { type: 'button', disabled: true }, on: { click: () => void this.submit() } });
+    this.post = h('button', {
+      class: 'op-btn-primary',
+      text: t('comment.post'),
+      attrs: { type: 'button', disabled: true },
+      on: { click: () => void this.submit() },
+    });
 
     this.el = h(
       'section',
       { class: 'op-comments' },
       h('div', { class: 'op-desc-head' }, this.title),
       this.list,
-      h('div', { class: 'op-comment-new' }, this.input, h('div', { class: 'op-comment-actions' }, h('span', { class: 'op-composer-hint', text: t('comment.hint') }), h('span', { class: 'op-spacer' }), this.post)),
+      h(
+        'div',
+        { class: 'op-comment-new' },
+        this.input,
+        h(
+          'div',
+          { class: 'op-comment-actions' },
+          h('span', { class: 'op-composer-hint', text: t('comment.hint') }),
+          h('span', { class: 'op-spacer' }),
+          this.post,
+        ),
+      ),
     );
   }
 
@@ -57,7 +77,9 @@ export class CommentsPanel {
 
   bind(card: Card): void {
     this.card = card;
-    this.title.textContent = card.comments.length ? `${t('comments.title')} (${card.comments.length})` : t('comments.title');
+    this.title.textContent = card.comments.length
+      ? `${t('comments.title')} (${card.comments.length})`
+      : t('comments.title');
 
     if (this.draftKey !== card.key) {
       this.draftKey = card.key;
@@ -88,12 +110,18 @@ export class CommentsPanel {
   private renderThread(card: Card): void {
     this.host.releaseMarkdown(this.list);
     const now = this.host.now();
-    this.list.replaceChildren(...(card.comments.length ? card.comments.map((c) => this.item(card, c, now)) : [h('div', { class: 'op-comments-empty', text: t('comments.empty') })]));
+    this.list.replaceChildren(
+      ...(card.comments.length
+        ? card.comments.map((c) => this.item(card, c, now))
+        : [h('div', { class: 'op-comments-empty', text: t('comments.empty') })]),
+    );
   }
 
   private item(card: Card, comment: Comment, now: Date): HTMLElement {
     const body = h('div', { class: 'op-comment-body markdown-rendered' });
-    void Promise.resolve(this.host.renderMarkdown(body, comment.text, card.path)).catch(() => (body.textContent = comment.text));
+    void Promise.resolve(this.host.renderMarkdown(body, comment.text, card.path)).catch(
+      () => (body.textContent = comment.text),
+    );
 
     // Rendered checkboxes are only pictures: a click rewrites that task in the comment's text.
     body.addEventListener('click', (e) => {
@@ -113,7 +141,13 @@ export class CommentsPanel {
         'div',
         { class: 'op-comment-head' },
         h('span', { class: 'op-comment-author', text: comment.author }),
-        when ? h('span', { class: 'op-comment-time', text: timeAgo(comment.at, now), attrs: { title: when.toLocaleString(getLocale()) } }) : null,
+        when
+          ? h('span', {
+              class: 'op-comment-time',
+              text: timeAgo(comment.at, now),
+              attrs: { title: when.toLocaleString(getLocale()) },
+            })
+          : null,
         h('span', { class: 'op-spacer' }),
         this.action('edit', t('comment.edit'), () => this.startEdit(card, comment, main, body)),
         this.action('trash', t('comment.delete'), () => void this.remove(card, comment), 'op-danger'),
@@ -124,7 +158,15 @@ export class CommentsPanel {
   }
 
   private action(name: Parameters<typeof icon>[0], label: string, onClick: () => void, extra = ''): HTMLButtonElement {
-    return h('button', { class: `op-icon-btn op-comment-act ${extra}`.trim(), attrs: { type: 'button', 'aria-label': label, title: label }, on: { click: onClick } }, icon(name, 14));
+    return h(
+      'button',
+      {
+        class: `op-icon-btn op-comment-act ${extra}`.trim(),
+        attrs: { type: 'button', 'aria-label': label, title: label },
+        on: { click: onClick },
+      },
+      icon(name, 14),
+    );
   }
 
   // --- actions ----------------------------------------------------------------
@@ -140,7 +182,9 @@ export class CommentsPanel {
       this.drafts.delete(card.key);
       autosize(this.input);
       // The thread re-renders on the next frame; wait for it, then show the newest comment.
-      requestAnimationFrame(() => requestAnimationFrame(() => this.list.lastElementChild?.scrollIntoView({ block: 'nearest' })));
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => this.list.lastElementChild?.scrollIntoView({ block: 'nearest' })),
+      );
     } catch (e) {
       this.fail(e);
     } finally {
@@ -152,7 +196,11 @@ export class CommentsPanel {
   private startEdit(card: Card, comment: Comment, main: HTMLElement, body: HTMLElement): void {
     if (this.editing) return;
     this.editing = comment.id;
-    const area = h('textarea', { class: 'op-comment-input op-comment-edit', props: { value: comment.text, rows: 2 }, attrs: { 'aria-label': t('comment.edit') } });
+    const area = h('textarea', {
+      class: 'op-comment-input op-comment-edit',
+      props: { value: comment.text, rows: 2 },
+      attrs: { 'aria-label': t('comment.edit') },
+    });
     const finish = () => {
       this.editing = null;
       this.sig = ''; // rebuild from the latest data
@@ -188,7 +236,12 @@ export class CommentsPanel {
         { class: 'op-comment-actions' },
         h('span', { class: 'op-spacer' }),
         h('button', { class: 'op-btn', text: t('cancel'), attrs: { type: 'button' }, on: { click: finish } }),
-        h('button', { class: 'op-btn-primary', text: t('comment.save'), attrs: { type: 'button' }, on: { click: () => void save() } }),
+        h('button', {
+          class: 'op-btn-primary',
+          text: t('comment.save'),
+          attrs: { type: 'button' },
+          on: { click: () => void save() },
+        }),
       ),
     );
     main.replaceChild(form, body);

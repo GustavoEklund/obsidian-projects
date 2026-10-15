@@ -31,7 +31,11 @@ describe('parseFrontmatter', () => {
 
 describe('patchFrontmatter', () => {
   it('updates, adds and removes keys; leaves the body alone', () => {
-    const out = patchFrontmatter('---\ntitle: Old\nstatus: todo\n---\nBody text\n', { title: 'New', priority: 'high', status: null });
+    const out = patchFrontmatter('---\ntitle: Old\nstatus: todo\n---\nBody text\n', {
+      title: 'New',
+      priority: 'high',
+      status: null,
+    });
     expect(parseFrontmatter(out)).toEqual({ title: 'New', priority: 'high' });
     expect(splitFrontmatter(out).body).toBe('Body text\n');
   });
@@ -67,5 +71,27 @@ describe('patchFrontmatter', () => {
 describe('patchFrontmatter with non-map frontmatter', () => {
   it('refuses to overwrite frontmatter that is not key/value pairs', () => {
     expect(() => patchFrontmatter('---\njust a string\n---\nx', { a: 1 })).toThrow(/Invalid frontmatter/);
+  });
+});
+
+describe('patchFrontmatter replacing a multi-line value', () => {
+  const multiline = '---\ntitle: |-\n  first\n  second\nother: kept\n---\nbody\n';
+
+  it('can replace it with text made only of spaces (a block scalar would read it back as empty)', () => {
+    // Found by a property test with the counterexample { a: 'multi\nline' } patched with ' '.
+    const out = patchFrontmatter(multiline, { title: ' ' });
+    expect(parseFrontmatter(out)).toEqual({ title: ' ', other: 'kept' });
+  });
+
+  it('still replaces it with ordinary text, and keeps the other keys and the body', () => {
+    const out = patchFrontmatter(multiline, { title: 'one line now' });
+    expect(parseFrontmatter(out)).toEqual({ title: 'one line now', other: 'kept' });
+    expect(splitFrontmatter(out).body).toBe('body\n');
+  });
+
+  it('keeps a comment on the value line when the style is dropped', () => {
+    const out = patchFrontmatter('---\ntitle: |- # why\n  first\n  second\n---\n', { title: 'x' });
+    expect(out).toContain('# why');
+    expect(parseFrontmatter(out)).toEqual({ title: 'x' });
   });
 });

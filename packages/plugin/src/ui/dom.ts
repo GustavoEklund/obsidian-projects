@@ -20,7 +20,11 @@ export function append(parent: Node, children: Child[]): void {
   }
 }
 
-export function h<K extends keyof HTMLElementTagNameMap>(tag: K, opts: HOpts<K> = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
+export function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  opts: HOpts<K> = {},
+  ...children: Child[]
+): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   if (opts.class) el.className = opts.class;
   if (opts.text !== undefined) el.textContent = opts.text;
@@ -37,7 +41,10 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, opts: HOpts<K> 
   return el;
 }
 
-export function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number): ((...args: A) => void) & { flush(): void; cancel(): void } {
+export function debounce<A extends unknown[]>(
+  fn: (...args: A) => void,
+  ms: number,
+): ((...args: A) => void) & { flush(): void; cancel(): void } {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: A | undefined;
   const run = () => {
@@ -101,7 +108,7 @@ export function distinctHues(names: Iterable<string>, minGap = 36): Map<string, 
     let best = preferred;
     let bestGap = -1;
     for (let step = 0; step < 24; step++) {
-      const hue = Math.round((preferred + step * GOLDEN_ANGLE) % 360);
+      const hue = Math.round((preferred + step * GOLDEN_ANGLE) % 360) % 360; // rounding 359.6 must not give 360
       const gap = taken.length ? Math.min(...taken.map((t) => circularDistance(hue, t))) : 360;
       if (gap > bestGap) {
         best = hue;
@@ -118,7 +125,8 @@ export function distinctHues(names: Iterable<string>, minGap = 36): Map<string, 
 export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return '?';
-  const letters = words.length === 1 ? [...words[0]!].slice(0, 2) : [[...words[0]!][0]!, [...words[words.length - 1]!][0]!];
+  const letters =
+    words.length === 1 ? [...words[0]!].slice(0, 2) : [[...words[0]!][0]!, [...words[words.length - 1]!][0]!];
   return letters.join('').toUpperCase();
 }
 

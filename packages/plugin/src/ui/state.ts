@@ -1,4 +1,12 @@
-import { CARD_TYPES, PRIORITIES, UNASSIGNED, type BoardConfig, type CardFilter, type CardType, type Priority } from '@oprojects/core';
+import {
+  CARD_TYPES,
+  PRIORITIES,
+  UNASSIGNED,
+  type BoardConfig,
+  type CardFilter,
+  type CardType,
+  type Priority,
+} from '@oprojects/core';
 
 /** Everything the toolbar controls. Persisted per view so a reload restores it. */
 export interface UiState {
@@ -47,13 +55,27 @@ export function sanitizeState(raw: unknown): UiState {
     mine: r.mine === true,
     showEpics: r.showEpics === true,
     showArchived: r.showArchived === true,
-    drawerWidth: typeof r.drawerWidth === 'number' && Number.isFinite(r.drawerWidth) && r.drawerWidth >= 240 && r.drawerWidth <= 4000 ? Math.round(r.drawerWidth) : null,
+    drawerWidth:
+      typeof r.drawerWidth === 'number' &&
+      Number.isFinite(r.drawerWidth) &&
+      r.drawerWidth >= 240 &&
+      r.drawerWidth <= 4000
+        ? Math.round(r.drawerWidth)
+        : null,
   };
 }
 
 /** Number of active filter dimensions (what the "Clear" button resets). */
 export function activeFilterCount(s: UiState): number {
-  return (s.text.trim() ? 1 : 0) + (s.assignee.length ? 1 : 0) + (s.type.length ? 1 : 0) + (s.priority.length ? 1 : 0) + (s.labels.length ? 1 : 0) + (s.parent ? 1 : 0) + (s.mine ? 1 : 0);
+  return (
+    (s.text.trim() ? 1 : 0) +
+    (s.assignee.length ? 1 : 0) +
+    (s.type.length ? 1 : 0) +
+    (s.priority.length ? 1 : 0) +
+    (s.labels.length ? 1 : 0) +
+    (s.parent ? 1 : 0) +
+    (s.mine ? 1 : 0)
+  );
 }
 
 export function clearFilters(s: UiState): UiState {

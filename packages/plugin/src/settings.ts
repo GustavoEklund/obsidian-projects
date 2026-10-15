@@ -1,4 +1,11 @@
-import { DEFAULT_CONFIG, isValidPrefix, normalizeFolder, slugifyColumnId, type BoardConfig, type Column } from '@oprojects/core';
+import {
+  DEFAULT_CONFIG,
+  isValidPrefix,
+  normalizeFolder,
+  slugifyColumnId,
+  type BoardConfig,
+  type Column,
+} from '@oprojects/core';
 import { Notice, PluginSettingTab, Setting, type App, type TextComponent } from 'obsidian';
 import { t } from './i18n';
 import type CardsPlugin from './main';
@@ -57,14 +64,19 @@ export class CardsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName(t('settings.me'))
       .setDesc(t('settings.me.desc'))
-      .addText((text) => commitOnBlur(text.setValue(cfg().me), (v) => v.trim() !== cfg().me && void save({ me: v.trim() })));
+      .addText((text) =>
+        commitOnBlur(text.setValue(cfg().me), (v) => v.trim() !== cfg().me && void save({ me: v.trim() })),
+      );
 
     new Setting(containerEl)
       .setName(t('settings.members'))
       .setDesc(t('settings.members.desc'))
       .addText((text) =>
         commitOnBlur(text.setPlaceholder('Ana, Bruno').setValue(cfg().members.join(', ')), (v) => {
-          const members = v.split(',').map((m) => m.trim()).filter(Boolean);
+          const members = v
+            .split(',')
+            .map((m) => m.trim())
+            .filter(Boolean);
           if (members.join('\n') !== cfg().members.join('\n')) void save({ members });
         }),
       );
@@ -93,7 +105,8 @@ export class CardsSettingTab extends PluginSettingTab {
       await this.plugin.updateConfig({ ...this.plugin.config, columns: next });
       this.display();
     };
-    const replace = (i: number, patch: Partial<Column>) => columns().map((c, idx) => (idx === i ? { ...c, ...patch } : c));
+    const replace = (i: number, patch: Partial<Column>) =>
+      columns().map((c, idx) => (idx === i ? Object.assign({}, c, patch) : c));
 
     columns().forEach((column, i) => {
       new Setting(containerEl)
@@ -101,16 +114,29 @@ export class CardsSettingTab extends PluginSettingTab {
         .setName(`#${i + 1}`)
         // The id is what cards store and what the CLI accepts (`oprojects move 12 ${column.id}`).
         .setDesc(`id: ${column.id}`)
-        .addText((text) => commitOnBlur(text.setPlaceholder(t('settings.column.name')).setValue(column.name), (v) => v.trim() && v.trim() !== column.name && void saveColumns(replace(i, { name: v.trim() }))))
-        .addToggle((toggle) => toggle.setTooltip(t('settings.column.done')).setValue(!!column.done).onChange((done) => void saveColumns(replace(i, { done: done || undefined }))))
+        .addText((text) =>
+          commitOnBlur(
+            text.setPlaceholder(t('settings.column.name')).setValue(column.name),
+            (v) => v.trim() && v.trim() !== column.name && void saveColumns(replace(i, { name: v.trim() })),
+          ),
+        )
+        .addToggle((toggle) =>
+          toggle
+            .setTooltip(t('settings.column.done'))
+            .setValue(!!column.done)
+            .onChange((done) => void saveColumns(replace(i, { done: done || undefined }))),
+        )
         .addText((text) => {
           text.inputEl.type = 'number';
           text.inputEl.min = '0';
           text.inputEl.style.width = '64px';
-          return commitOnBlur(text.setPlaceholder(t('settings.column.wip')).setValue(column.wip ? String(column.wip) : ''), (v) => {
-            const wip = Math.max(0, Math.floor(Number(v)) || 0);
-            if (wip !== (column.wip ?? 0)) void saveColumns(replace(i, { wip: wip || undefined }));
-          });
+          return commitOnBlur(
+            text.setPlaceholder(t('settings.column.wip')).setValue(column.wip ? String(column.wip) : ''),
+            (v) => {
+              const wip = Math.max(0, Math.floor(Number(v)) || 0);
+              if (wip !== (column.wip ?? 0)) void saveColumns(replace(i, { wip: wip || undefined }));
+            },
+          );
         })
         .addExtraButton((b) =>
           b
@@ -151,7 +177,10 @@ export class CardsSettingTab extends PluginSettingTab {
         const base = slugifyColumnId(t('settings.column.name'));
         let id = base;
         for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
-        void saveColumns([...columns(), { id, name: t('settings.column.name') + (id === base ? '' : ` ${id.slice(base.length + 1)}`) }]);
+        void saveColumns([
+          ...columns(),
+          { id, name: t('settings.column.name') + (id === base ? '' : ` ${id.slice(base.length + 1)}`) },
+        ]);
       }),
     );
   }

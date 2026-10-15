@@ -1,4 +1,15 @@
-import { PRIORITIES, displayColumn, filterCards, groupByColumn, isArchivedDone, type BoardConfig, type Card, type CardType, type Column, type Placement } from '@oprojects/core';
+import {
+  PRIORITIES,
+  displayColumn,
+  filterCards,
+  groupByColumn,
+  isArchivedDone,
+  type BoardConfig,
+  type Card,
+  type CardType,
+  type Column,
+  type Placement,
+} from '@oprojects/core';
 import { t } from '../i18n';
 import { cardSignature, createCardEl, fillCardEl, setColorUniverse, type CardCtx } from './card-view';
 import { createComposer, type Composer } from './composer';
@@ -27,7 +38,8 @@ interface Entry {
   sig: string;
 }
 
-const isTyping = (el: Element | null): boolean => !!el && (el.matches('input, textarea, select') || (el as HTMLElement).isContentEditable);
+const isTyping = (el: Element | null): boolean =>
+  !!el && (el.matches('input, textarea, select') || (el as HTMLElement).isContentEditable);
 
 /**
  * The whole board: toolbar, columns, cards, details drawer. It renders only
@@ -79,7 +91,13 @@ export class BoardUI {
     this.boardEl = h('div', { class: 'op-board', attrs: { role: 'list' } });
     this.loading = h('div', { class: 'op-loading', text: t('loading'), attrs: { hidden: true } });
     // tabindex -1: clicking empty space inside the board focuses the root, so shortcuts (/, c, Esc) keep working.
-    this.el = h('div', { class: 'op-root', attrs: { 'aria-label': t('board.title'), tabindex: -1 } }, this.toolbar.el, h('div', { class: 'op-main' }, this.boardEl, this.drawer.el), this.loading);
+    this.el = h(
+      'div',
+      { class: 'op-root', attrs: { 'aria-label': t('board.title'), tabindex: -1 } },
+      this.toolbar.el,
+      h('div', { class: 'op-main' }, this.boardEl, this.drawer.el),
+      this.loading,
+    );
     container.appendChild(this.el);
 
     this.drag = new DragController(this.boardEl, {
@@ -199,7 +217,9 @@ export class BoardUI {
     const ctx: CardCtx = { config, byKey, now };
     const s = this.state;
 
-    const base = all.filter((c) => (s.showEpics || c.type !== 'epic') && (s.showArchived || !isArchivedDone(c, config, now)));
+    const base = all.filter(
+      (c) => (s.showEpics || c.type !== 'epic') && (s.showArchived || !isArchivedDone(c, config, now)),
+    );
     let visible = filterCards(base, toFilter(s, config), config);
     if (s.parent === NO_EPIC) visible = visible.filter((c) => !c.parent);
     const filtering = visible.length !== base.length;
@@ -214,7 +234,10 @@ export class BoardUI {
     for (const { column, cards } of groupByColumn(visible, config)) {
       const col = this.columns.get(column.id)!;
       this.reconcile(col.list, cards, ctx);
-      this.order.set(column.id, cards.map((c) => c.key));
+      this.order.set(
+        column.id,
+        cards.map((c) => c.key),
+      );
       this.updateHeader(col, column, cards.length, totals.get(column.id) ?? 0);
       col.empty.hidden = cards.length > 0;
       col.empty.textContent = filtering ? t('empty.filtered') : t('empty.column');
@@ -302,12 +325,26 @@ export class BoardUI {
     const count = h('span', { class: 'op-col-count' });
     const list = h('div', { class: 'op-col-list', attrs: { role: 'list' } });
     const empty = h('div', { class: 'op-col-empty' });
-    const addBtn = h('button', { class: 'op-add', attrs: { type: 'button' }, on: { click: () => this.openComposer(column.id) } }, icon('plus', 14), h('span', { text: t('create') }));
+    const addBtn = h(
+      'button',
+      { class: 'op-add', attrs: { type: 'button' }, on: { click: () => this.openComposer(column.id) } },
+      icon('plus', 14),
+      h('span', { text: t('create') }),
+    );
     const footer = h('footer', { class: 'op-col-foot' }, addBtn);
     const el = h(
       'section',
-      { class: `op-col${column.done ? ' op-col-is-done' : ''}`, attrs: { 'data-col': column.id, role: 'group', 'aria-label': column.name } },
-      h('header', { class: 'op-col-head' }, column.done ? icon('check', 14) : null, h('span', { class: 'op-col-name', text: column.name }), count),
+      {
+        class: `op-col${column.done ? ' op-col-is-done' : ''}`,
+        attrs: { 'data-col': column.id, role: 'group', 'aria-label': column.name },
+      },
+      h(
+        'header',
+        { class: 'op-col-head' },
+        column.done ? icon('check', 14) : null,
+        h('span', { class: 'op-col-name', text: column.name }),
+        count,
+      ),
       h('div', { class: 'op-col-scroll' }, list, h('div', { class: 'op-drop-line', attrs: { hidden: true } }), empty),
       footer,
     );
@@ -384,13 +421,23 @@ export class BoardUI {
       { label: t('action.openNote'), onClick: () => this.host.openNote(card) },
       { label: t('action.openNoteTab'), onClick: () => this.host.openNote(card, { newTab: true }) },
       { separator: true },
-      ...config.columns.map((c) => ({ label: t('action.moveTo', { column: c.name }), checked: c.id === current, onClick: () => c.id !== current && this.move(card.key, c.id) })),
+      ...config.columns.map((c) => ({
+        label: t('action.moveTo', { column: c.name }),
+        checked: c.id === current,
+        onClick: () => c.id !== current && this.move(card.key, c.id),
+      })),
       { separator: true },
-      ...PRIORITIES.map((p) => ({ label: t('action.setPriority', { priority: t(`priority.${p}`) }), checked: p === card.priority, onClick: () => this.update(card.key, { priority: p }) })),
+      ...PRIORITIES.map((p) => ({
+        label: t('action.setPriority', { priority: t(`priority.${p}`) }),
+        checked: p === card.priority,
+        onClick: () => this.update(card.key, { priority: p }),
+      })),
       { separator: true },
     ];
-    if (me && card.assignee !== me) entries.push({ label: t('action.assignMe'), onClick: () => this.update(card.key, { assignee: me }) });
-    if (card.assignee) entries.push({ label: t('action.unassign'), onClick: () => this.update(card.key, { assignee: null }) });
+    if (me && card.assignee !== me)
+      entries.push({ label: t('action.assignMe'), onClick: () => this.update(card.key, { assignee: me }) });
+    if (card.assignee)
+      entries.push({ label: t('action.unassign'), onClick: () => this.update(card.key, { assignee: null }) });
     entries.push(
       { label: t('action.copyKey'), onClick: () => this.copy(card.key) },
       { label: t('action.copyLink'), onClick: () => this.copy(`[[${card.key}]]`) },
@@ -438,7 +485,8 @@ export class BoardUI {
       const target = config.columns[idx + (e.key === 'ArrowLeft' ? -1 : 1)];
       if (target) this.move(card.key, target.id);
     } else if (e.key === 'ArrowUp' && pos > 0) this.move(card.key, colId, { before: keys[pos - 1]! });
-    else if (e.key === 'ArrowDown' && pos >= 0 && pos < keys.length - 1) this.move(card.key, colId, { after: keys[pos + 1]! });
+    else if (e.key === 'ArrowDown' && pos >= 0 && pos < keys.length - 1)
+      this.move(card.key, colId, { after: keys[pos + 1]! });
     else return;
     e.preventDefault();
   };

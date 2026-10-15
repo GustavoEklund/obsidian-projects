@@ -18,7 +18,10 @@ export interface CardFilter {
 }
 
 export function normalizeText(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
 }
 
 // Normalizing every card's text on each keystroke is the hot path of search-as-you-type.
@@ -27,7 +30,16 @@ const haystacks = new WeakMap<Card, string>();
 function haystack(card: Card): string {
   let hay = haystacks.get(card);
   if (hay === undefined) {
-    hay = normalizeText([card.key, card.title, card.assignee ?? '', card.labels.join(' '), card.body, ...card.comments.map((c) => c.text)].join('\n'));
+    hay = normalizeText(
+      [
+        card.key,
+        card.title,
+        card.assignee ?? '',
+        card.labels.join(' '),
+        card.body,
+        ...card.comments.map((c) => c.text),
+      ].join('\n'),
+    );
     haystacks.set(card, hay);
   }
   return hay;
@@ -41,11 +53,18 @@ export function matchesFilter(card: Card, f: CardFilter, config: BoardConfig): b
     const who = card.assignee ? normalizeText(card.assignee) : UNASSIGNED;
     if (!f.assignee.some((a) => (a === UNASSIGNED ? who === UNASSIGNED : normalizeText(a) === who))) return false;
   }
-  if (f.labels?.length && !f.labels.some((l) => card.labels.some((cl) => normalizeText(cl) === normalizeText(l)))) return false;
+  if (f.labels?.length && !f.labels.some((l) => card.labels.some((cl) => normalizeText(cl) === normalizeText(l))))
+    return false;
   if (f.parent && card.parent !== f.parent.toUpperCase()) return false;
   if (f.text?.trim()) {
     const hay = haystack(card);
-    if (!normalizeText(f.text).split(/\s+/).filter(Boolean).every((w) => hay.includes(w))) return false;
+    if (
+      !normalizeText(f.text)
+        .split(/\s+/)
+        .filter(Boolean)
+        .every((w) => hay.includes(w))
+    )
+      return false;
   }
   return true;
 }
@@ -117,7 +136,13 @@ export function priorityWeight(p: Priority): number {
  * `cards` is any snapshot of the board; `moving` itself is ignored so the same
  * call works for reordering inside a column.
  */
-export function rankForPlacement(cards: Card[], config: BoardConfig, moving: string, status: string, placement: Placement = {}): string {
+export function rankForPlacement(
+  cards: Card[],
+  config: BoardConfig,
+  moving: string,
+  status: string,
+  placement: Placement = {},
+): string {
   const columnId = displayColumn(config, status).id;
   const column = sortCards(
     cards.filter((c) => c.key !== moving && displayColumn(config, c.status).id === columnId),

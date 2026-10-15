@@ -123,10 +123,20 @@ export class DragController {
 
     const list = target.col.querySelector<HTMLElement>('.op-col-list')!;
     const sameColumn = card.parentElement === list;
-    const unchanged = sameColumn && (target.before ? target.before === card.nextElementSibling : target.after ? target.after === card.previousElementSibling : list.children.length === 1);
+    const unchanged =
+      sameColumn &&
+      (target.before
+        ? target.before === card.nextElementSibling
+        : target.after
+          ? target.after === card.previousElementSibling
+          : list.children.length === 1);
     if (unchanged) return;
 
-    const placement: Placement = target.before ? { before: keyOf(target.before) } : target.after ? { after: keyOf(target.after) } : {};
+    const placement: Placement = target.before
+      ? { before: keyOf(target.before) }
+      : target.after
+        ? { after: keyOf(target.after) }
+        : {};
     this.hooks.onDrop(keyOf(card), target.status, placement);
   };
 
