@@ -24,7 +24,7 @@ You need Node ≥ 20 and, for the UI tests, Chrome or Chromium.
 git clone https://github.com/GustavoEklund/obsidian-projects.git
 cd obsidian-projects
 npm install
-npm run check          # types + unit tests + version check + build + browser UI tests
+npm run check          # every quality gate (see below); this is what CI runs
 ```
 
 A comfortable loop for working on the plugin:
@@ -55,16 +55,41 @@ Anything in `packages/plugin/src/ui/` talks to the app only through the `BoardHo
 ## Making a change
 
 - Keep the change focused, and match the style of the code around it (naming, comment density, idioms). The project is
-  TypeScript with `strict` on; there is no separate formatter to run.
-- **Add tests.** Logic goes in a unit test next to the package (`packages/*/test`). Behavior of the interface goes in
-  `scripts/ui-test.mjs`. Anything that depends on how Obsidian itself behaves goes in `scripts/e2e-obsidian.mjs`, which
-  runs the real app in a throwaway profile and never touches your own vaults (`npm run test:obsidian`).
+  strict TypeScript. Run `npm run format` before you commit: formatting is done by [Oxfmt](https://oxc.rs) and checked in CI,
+  so there is nothing to argue about in review. [Oxlint](https://oxc.rs) catches the bugs a compiler does not.
+- **Add tests.** Logic goes in a unit test next to the package (`packages/*/test`); for anything with invariants (ranking,
+  parsing, round trips) prefer a property test with [fast-check](https://fast-check.dev). The interface is tested under
+  jsdom in `packages/plugin/test` and in a real browser in `scripts/ui-test.mjs`. Anything that depends on how Obsidian
+  itself behaves goes in `scripts/e2e-obsidian.mjs`, which runs the real app in a throwaway profile and never touches your
+  own vaults (`npm run test:obsidian`). A bug fix starts with a test that fails without it.
 - **Think about performance.** The board has to stay fast with thousands of cards: no per-card work on every render,
   no reads from disk while rendering (the board reads from the in-memory `CardStore`).
 - **Be careful with dependencies.** The plugin ships as a single `main.js`; a new runtime dependency is
   a cost for every user. Open an issue first.
 - The CSS classes are prefixed `op-`, and colors come from Obsidian's theme variables so the board follows the user's theme.
 - If you change how the board looks, run `SHOTS=./shots npm run test:ui` and look at the screenshots.
+
+## Quality gates
+
+`npm run check` runs every gate, in the order CI does. CI runs them as separate jobs so a failure points at its cause, and
+a final job, **All gates**, passes only when all of them do.
+
+| Gate | Command | What it protects |
+| --- | --- | --- |
+| Lint | `npm run lint` | Bugs and suspicious code: Oxlint with the correctness, suspicious and perf rules, plus the import and vitest plugins. No `console` in the plugin or the core. |
+| Formatting | `npm run format:check` | One code style (Oxfmt, 120 columns). `npm run format` fixes it. |
+| Types | `npm run typecheck` | Strict TypeScript, including unused variables and parameters and implicit returns. |
+| English only | `npm run check:language` | Source, tests, sample data and docs are English; only the interface dictionary may carry other languages. |
+| Documentation | `npm run check:docs` | Every link, anchor, mentioned path, `npm run` script and CLI command in the docs exists; the CHANGELOG is well formed; the workflows are valid and pin their actions. |
+| Versions | `npm run version:check` | Every file that carries the version agrees. |
+| Unit tests and coverage | `npm run test:coverage` | Logic, property-based and model-based tests, the DOM UI under jsdom, and the gate scripts themselves. Fails below the coverage thresholds in `vitest.config.mts`. Runs on Node 20 and 22. |
+| Build artifacts | `npm run check:bundle` | What ships: size budgets, no Node modules in the plugin (it must run on mobile), a license notice for every bundled package, and the plugin loads and exports a plugin class. |
+| CLI smoke test | `npm run test:smoke` | The built `oprojects.cjs` works as a real process (shebang, bundled dependencies, stdin, exit codes). |
+| Browser UI | `npm run test:ui` | The board in a real Chrome: drag and drop, editing, the resizable panel, wide content staying inside it. |
+| Real Obsidian | `npm run test:obsidian` | The plugin inside Obsidian itself, in a throwaway profile (CI pins the Obsidian version). |
+| Dependency audit | `npm run audit:deps` | Known vulnerabilities in what ships. Advisories in development tools are reported without blocking. |
+
+When the repository is public, make **All gates** a required status check for `main`.
 
 ### Language
 

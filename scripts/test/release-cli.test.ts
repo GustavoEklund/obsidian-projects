@@ -1,0 +1,256 @@
+// Drives scripts/release.ts in a throwaway git repository that has the same shape as this one (real git, real files).
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { at } from '../quality/lib';
+import { main } from '../release';
+
+const TSX = at('node_modules/.bin/tsx');
+const CHANGELOG = `# Changelog
+
+## [Unreleased]
+
+### Fixed
+
+- Something.
+
+## [0.1.0] - 2026-10-15
+
+First release.
+
+[Unreleased]: https://github.com/o/r/compare/0.1.0...HEAD
+[0.1.0]: https://github.com/o/r/releases/tag/0.1.0
+`;
+
+let repo: string;
+
+const write = (file: string, data: unknown) => {
+  mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+  writeFileSync(path.join(repo, file), typeof data === 'string' ? data : `${JSON.stringify(data, null, 2)}\n`);
+};
+const read = (file: string) => readFileSync(path.join(repo, file), 'utf8');
+const json = (file: string) => JSON.parse(read(file)) as Record<string, any>;
+const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+
+const RELEASE_DAY = new Date('2026-12-01T12:00:00Z');
+
+function release(...args: string[]) {
+  let out = '';
+  let err = '';
+  const code = main(
+    args,
+    repo,
+    { log: (t) => void (out += `${t}\n`), error: (t) => void (err += `${t}\n`) },
+    () => RELEASE_DAY,
+  );
+  return { code, out, err };
+}
+
+function makeRepo(version = '0.1.0') {
+  const pkg = (name: string) => ({ name, version, private: true });
+  write('package.json', pkg('root'));
+  for (const name of ['core', 'cli', 'plugin']) write(`packages/${name}/package.json`, pkg(`@x/${name}`));
+  write('packages/plugin/manifest.json', { id: 'x', name: 'X', version, minAppVersion: '1.8.0' });
+  write('versions.json', { [version]: '1.8.0' });
+  write('package-lock.json', {
+    name: 'root',
+    version,
+    lockfileVersion: 3,
+    packages: {
+      '': { name: 'root', version },
+      'packages/core': { name: '@x/core', version },
+      'packages/cli': { name: '@x/cli', version },
+      'packages/plugin': { name: '@x/plugin', version },
+    },
+  });
+  write('CHANGELOG.md', CHANGELOG);
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'base');
+}
+
+beforeEach(() => {
+  repo = mkdtempSync(path.join(tmpdir(), 'oprojects-release-'));
+  makeRepo();
+});
+afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+describe('release.ts check', () => {
+  it('passes on a consistent repo and prints the version', () => {
+    const r = release('check');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('Versions are consistent (0.1.0)');
+  });
+
+  it('names the file that disagrees', () => {
+    write('packages/core/package.json', { name: '@x/core', version: '0.0.9' });
+    const r = release('check');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('packages/core/package.json: version is 0.0.9');
+  });
+
+  it('accepts a tag equal to the version when the changelog describes it', () => {
+    expect(release('check', '--tag', '0.1.0').code).toBe(0);
+  });
+
+  it('rejects a tag with a "v" prefix, or that is not the version', () => {
+    expect(release('check', '--tag', 'v0.1.0').err).toContain('does not match the version 0.1.0');
+    expect(release('check', '--tag', '0.2.0').code).toBe(1);
+  });
+
+  it('rejects a tag whose version has no notes in the changelog', () => {
+    write('CHANGELOG.md', CHANGELOG.replace('First release.', ''));
+    const r = release('check', '--tag', '0.1.0');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('no filled-in "## [0.1.0]" section');
+  });
+
+  it('needs a value after --tag', () => {
+    expect(release('check', '--tag').err).toContain('--tag needs a value');
+  });
+});
+
+describe('release.ts notes', () => {
+  it('prints the notes of a version, and only those', () => {
+    const r = release('notes', '0.1.0');
+    expect(r.code).toBe(0);
+    expect(r.out.trim()).toBe('First release.');
+  });
+
+  it('fails for a version without notes', () => {
+    const r = release('notes', '9.9.9');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('no filled-in "## [9.9.9]" section');
+  });
+
+  it('needs a version', () => {
+    expect(release('notes').code).toBe(1);
+  });
+});
+
+describe('release.ts <bump>', () => {
+  it('--dry-run prints the plan and writes nothing', () => {
+    const r = release('minor', '--dry-run');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('0.1.0 → 0.2.0  (dry run, nothing written)');
+    expect(git('status', '--porcelain')).toBe('');
+    expect(git('tag', '--list')).toBe('');
+  });
+
+  it('bumps every file that carries the version, dates the changelog, commits and tags', () => {
+    const r = release('minor');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('Committed "Release 0.2.0" and tagged 0.2.0');
+
+    for (const f of [
+      'package.json',
+      'packages/core/package.json',
+      'packages/cli/package.json',
+      'packages/plugin/package.json',
+      'packages/plugin/manifest.json',
+    ]) {
+      expect(json(f).version, f).toBe('0.2.0');
+    }
+    expect(json('versions.json')).toEqual({ '0.1.0': '1.8.0', '0.2.0': '1.8.0' });
+    const lock = json('package-lock.json');
+    expect([
+      lock.version,
+      lock.packages[''].version,
+      lock.packages['packages/core'].version,
+      lock.packages['packages/plugin'].version,
+    ]).toEqual(['0.2.0', '0.2.0', '0.2.0', '0.2.0']);
+
+    expect(read('CHANGELOG.md')).toContain('## [Unreleased]\n\n## [0.2.0] - 2026-12-01\n\n### Fixed');
+    expect(read('CHANGELOG.md')).toContain(
+      '[Unreleased]: https://github.com/o/r/compare/0.2.0...HEAD\n[0.2.0]: https://github.com/o/r/compare/0.1.0...0.2.0',
+    );
+
+    expect(git('log', '-1', '--format=%s')).toBe('Release 0.2.0');
+    expect(git('cat-file', '-t', '0.2.0')).toBe('tag'); // annotated
+    expect(git('status', '--porcelain')).toBe('');
+    expect(release('check', '--tag', '0.2.0').code).toBe(0); // what CI will check after the push
+  });
+
+  it('keeps the formatting of the JSON files (two spaces, trailing newline) so the diff is only the version', () => {
+    release('patch');
+    expect(git('diff', 'HEAD~1', '--numstat', '--', 'package.json')).toMatch(/^1\s+1\s+package\.json$/);
+    expect(read('package.json').endsWith('}\n')).toBe(true);
+  });
+
+  it('accepts an explicit pre-release version', () => {
+    expect(release('0.2.0-beta.1').code).toBe(0);
+    expect(json('packages/plugin/manifest.json').version).toBe('0.2.0-beta.1');
+    expect(git('tag', '--list')).toBe('0.2.0-beta.1');
+  });
+
+  it('--no-git edits the files but neither commits nor tags', () => {
+    const r = release('patch', '--no-git');
+    expect(r.code).toBe(0);
+    expect(json('packages/plugin/manifest.json').version).toBe('0.1.1');
+    expect(git('log', '--format=%s')).toBe('base');
+    expect(git('tag', '--list')).toBe('');
+    expect(git('status', '--porcelain')).not.toBe('');
+  });
+
+  it('refuses on a dirty working tree, touching nothing', () => {
+    write('scratch.txt', 'wip');
+    const r = release('minor');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('The working tree is not clean');
+    expect(json('packages/plugin/manifest.json').version).toBe('0.1.0');
+    expect(git('tag', '--list')).toBe('');
+  });
+
+  it('refuses when the tag already exists', () => {
+    git('tag', '0.2.0');
+    const r = release('minor');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('The tag 0.2.0 already exists');
+  });
+
+  it('refuses when nothing is written under Unreleased', () => {
+    write('CHANGELOG.md', CHANGELOG.replace('### Fixed\n\n- Something.\n\n', ''));
+    git('commit', '-q', '-am', 'empty');
+    const r = release('minor');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('Nothing under "## [Unreleased]"');
+  });
+
+  it('refuses a version that is not newer, an unknown bump, and a missing argument', () => {
+    expect(release('0.1.0').err).toContain('is not newer than the current version 0.1.0');
+    expect(release('0.0.9').code).toBe(1);
+    expect(release('huge').err).toContain('Unknown bump');
+    const none = release();
+    expect(none.code).toBe(1);
+    expect(none.err).toContain('Usage:');
+  });
+
+  it('refuses to build on an inconsistent state', () => {
+    write('packages/cli/package.json', { name: '@x/cli', version: '0.0.1' });
+    git('commit', '-q', '-am', 'drift');
+    const r = release('minor');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('packages/cli/package.json: version is 0.0.1');
+  });
+});
+
+describe('the script as a process', () => {
+  const run = (...args: string[]) => spawnSync(TSX, ['scripts/release.ts', ...args], { cwd: at(), encoding: 'utf8' });
+
+  // tsx starts slowly when the whole suite runs in parallel, hence the generous timeout.
+  it('`check` succeeds on this very repository', { timeout: 60_000 }, () => {
+    const r = run('check');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('Versions are consistent');
+  });
+
+  it('prints the usage and exits with 1 when given nothing', { timeout: 60_000 }, () => {
+    const r = run();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('Usage: release.ts');
+  });
+});

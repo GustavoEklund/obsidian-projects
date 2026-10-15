@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { bump, compareVersions, extractNotes, parseVersion, problems, promoteUnreleased, unreleasedNotes, type RepoVersions } from '../release-lib';
+import {
+  bump,
+  compareVersions,
+  extractNotes,
+  parseVersion,
+  problems,
+  promoteUnreleased,
+  unreleasedNotes,
+  type RepoVersions,
+} from '../release-lib';
 
 describe('parseVersion', () => {
   it('accepts releases and pre-releases', () => {
@@ -8,7 +17,8 @@ describe('parseVersion', () => {
   });
 
   it('rejects anything that is not SemVer, including a "v" prefix and leading zeros', () => {
-    for (const bad of ['v1.2.3', '1.2', '1.2.3.4', '01.2.3', '1.2.3-', '1.2.3-01', 'latest', '']) expect(() => parseVersion(bad)).toThrow(/not a valid SemVer/);
+    for (const bad of ['v1.2.3', '1.2', '1.2.3.4', '01.2.3', '1.2.3-', '1.2.3-01', 'latest', ''])
+      expect(() => parseVersion(bad)).toThrow(/not a valid SemVer/);
   });
 });
 
@@ -20,8 +30,18 @@ describe('compareVersions', () => {
   });
 
   it('follows the SemVer 2.0 pre-release precedence example', () => {
-    const ordered = ['1.0.0-alpha', '1.0.0-alpha.1', '1.0.0-alpha.beta', '1.0.0-beta', '1.0.0-beta.2', '1.0.0-beta.11', '1.0.0-rc.1', '1.0.0'];
-    for (let i = 0; i < ordered.length - 1; i++) expect(compareVersions(ordered[i]!, ordered[i + 1]!), `${ordered[i]} < ${ordered[i + 1]}`).toBeLessThan(0);
+    const ordered = [
+      '1.0.0-alpha',
+      '1.0.0-alpha.1',
+      '1.0.0-alpha.beta',
+      '1.0.0-beta',
+      '1.0.0-beta.2',
+      '1.0.0-beta.11',
+      '1.0.0-rc.1',
+      '1.0.0',
+    ];
+    for (let i = 0; i < ordered.length - 1; i++)
+      expect(compareVersions(ordered[i]!, ordered[i + 1]!), `${ordered[i]} < ${ordered[i + 1]}`).toBeLessThan(0);
   });
 });
 
@@ -102,11 +122,15 @@ describe('changelog', () => {
     expect(out).toContain('## [Unreleased]\n\n## [0.3.0] - 2026-12-01\n\n### Added\n\n- Something new.');
     expect(unreleasedNotes(out)).toBe('');
     expect(extractNotes(out, '0.3.0')).toBe('### Added\n\n- Something new.');
-    expect(out).toContain('[Unreleased]: https://github.com/o/r/compare/0.3.0...HEAD\n[0.3.0]: https://github.com/o/r/compare/0.2.0...0.3.0\n[0.2.0]:');
+    expect(out).toContain(
+      '[Unreleased]: https://github.com/o/r/compare/0.3.0...HEAD\n[0.3.0]: https://github.com/o/r/compare/0.2.0...0.3.0\n[0.2.0]:',
+    );
   });
 
   it('refuses to release with nothing written, or without an Unreleased section', () => {
-    expect(() => promoteUnreleased('## [Unreleased]\n\n## [0.1.0] - 2026-10-15\nx\n', '0.2.0', '2026-01-01')).toThrow(/Nothing under/);
+    expect(() => promoteUnreleased('## [Unreleased]\n\n## [0.1.0] - 2026-10-15\nx\n', '0.2.0', '2026-01-01')).toThrow(
+      /Nothing under/,
+    );
     expect(() => promoteUnreleased('# Changelog\n', '0.2.0', '2026-01-01')).toThrow(/no "## \[Unreleased\]"/);
   });
 });

@@ -1,9 +1,14 @@
 name: CI
 
+# Every job is a quality gate. The last one, "All gates", succeeds only when all the others do: make that the single
+# required status check in the branch protection rules.
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '17 5 * * 1' # weekly: new advisories or tool releases can break a build that did not change
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,7 +18,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint (Oxlint)
+        run: npm run lint
+      - name: Formatting (Oxfmt)
+        run: npm run format:check
+      - name: Types
+        run: npm run typecheck
+      - name: Source and docs are in English
+        run: npm run check:language
+      - name: Documentation (links, paths, scripts, CLI commands, CHANGELOG, workflows)
+        run: npm run check:docs
+      - name: Every version in the repo agrees
+        run: npm run version:check
+
+  unit:
+    name: Unit tests, Node ${{ matrix.node }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -26,6 +55,91 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      # Types, unit tests, version consistency, build and the browser UI test (Chrome is preinstalled on the runner).
-      # `npm run test:obsidian` needs the Obsidian desktop app, so it is run locally before releases.
-      - run: npm run check
+      # Fails when coverage drops below the thresholds in vitest.config.mts.
+      - name: Tests and coverage
+        run: npm run test:coverage
+      - name: Coverage in the job summary
+        if: matrix.node == 22
+        run: npx tsx scripts/quality/coverage-summary.ts >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: matrix.node == 22
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  build:
+    name: Build, artifacts and browser UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Artifact gate (size budgets, no Node modules in the plugin, license notices, loads)
+        run: npm run check:bundle
+      - name: Smoke test of the built CLI
+        run: npm run test:smoke
+      # Chrome is preinstalled on the runner.
+      - name: Browser UI tests
+        run: npm run test:ui
+
+  obsidian:
+    name: End-to-end in the real Obsidian
+    runs-on: ubuntu-latest
+    env:
+      OBSIDIAN_VERSION: '1.14.4' # the version the suite is verified against; bump it on purpose
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Download Obsidian
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/obsidian"
+          gh release download "v$OBSIDIAN_VERSION" --repo obsidianmd/obsidian-releases --pattern "obsidian-$OBSIDIAN_VERSION.tar.gz" --dir "$RUNNER_TEMP/obsidian"
+          tar -xzf "$RUNNER_TEMP/obsidian/obsidian-$OBSIDIAN_VERSION.tar.gz" -C "$RUNNER_TEMP/obsidian"
+      # Runs the real app headless, with a throwaway profile and vault (see scripts/e2e-obsidian.mjs).
+      - name: Run the suite
+        run: npm run test:obsidian
+        env:
+          OBSIDIAN: ${{ runner.temp }}/obsidian/obsidian-${{ env.OBSIDIAN_VERSION }}/obsidian
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # What ships to users (the bundled runtime dependencies): any advisory fails the build.
+      - name: Production dependencies
+        run: npm run audit:deps
+      # Development tools never ship: report their advisories without blocking.
+      - name: Development dependencies (informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  gate:
+    name: All gates
+    if: always()
+    needs: [static, unit, build, obsidian, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every gate passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Gate results: $RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = "success" ] || { echo "A gate did not succeed."; exit 1; }
+          done

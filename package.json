@@ -11,30 +11,48 @@
   "bugs": {
     "url": "https://github.com/GustavoEklund/obsidian-projects/issues"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
+    "lint": "oxlint --deny-warnings",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "seed": "tsx scripts/seed.ts",
-    "install:vault": "node scripts/install-plugin.mjs",
+    "test:coverage": "vitest run --coverage",
     "test:ui": "node scripts/ui-test.mjs",
-    "check": "npm run typecheck && npm test && npm run version:check && npm run build && npm run test:ui",
     "test:obsidian": "node scripts/e2e-obsidian.mjs",
+    "test:smoke": "tsx scripts/smoke-test.ts",
+    "check:language": "tsx scripts/quality/language.ts",
+    "check:docs": "tsx scripts/quality/docs.ts",
+    "check:bundle": "tsx scripts/quality/bundle.ts",
     "version:check": "tsx scripts/release.ts check",
-    "release": "tsx scripts/release.ts"
+    "audit:deps": "npm audit --omit=dev --audit-level=low",
+    "gates:static": "npm run lint && npm run format:check && npm run typecheck && npm run check:language && npm run check:docs && npm run version:check",
+    "check": "npm run gates:static && npm run test:coverage && npm run build && npm run check:bundle && npm run test:smoke && npm run test:ui",
+    "release": "tsx scripts/release.ts",
+    "seed": "tsx scripts/seed.ts",
+    "install:vault": "node scripts/install-plugin.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "5.0.5",
     "esbuild": "^0.28.2",
+    "fast-check": "4.10.2",
     "jsdom": "^29.1.1",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
     "playwright-core": "^1.64.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "5.0.5"
   }
 }

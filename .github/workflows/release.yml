@@ -26,9 +26,12 @@ jobs:
       - name: The tag must match every version in the repo, and the CHANGELOG must describe it
         run: npx tsx scripts/release.ts check --tag "$GITHUB_REF_NAME"
 
-      - run: npm run typecheck
+      # The tagged commit should already have passed CI; check the essentials again before publishing.
+      - run: npm run gates:static
       - run: npm test
       - run: npm run build
+      - run: npm run check:bundle
+      - run: npm run test:smoke
 
       - name: Assemble the release assets
         run: |

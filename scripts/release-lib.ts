@@ -1,7 +1,8 @@
 // Pure helpers behind `scripts/release.ts`: SemVer arithmetic, consistency checks between every file that
 // carries a version, and the CHANGELOG ("Keep a Changelog" format) edits a release needs.
 
-export const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$/;
+export const SEMVER_RE =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$/;
 
 export interface Version {
   major: number;
@@ -16,7 +17,8 @@ export function parseVersion(text: string): Version {
   return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), pre: m[4] ? m[4].split('.') : [] };
 }
 
-export const formatVersion = (v: Version): string => `${v.major}.${v.minor}.${v.patch}${v.pre.length ? `-${v.pre.join('.')}` : ''}`;
+export const formatVersion = (v: Version): string =>
+  `${v.major}.${v.minor}.${v.patch}${v.pre.length ? `-${v.pre.join('.')}` : ''}`;
 
 /** SemVer 2.0 precedence (section 11): negative if a < b, 0 if equal, positive if a > b. */
 export function compareVersions(a: string, b: string): number {
@@ -47,10 +49,25 @@ export function bump(current: string, spec: string): string {
   if (SEMVER_RE.test(spec)) return spec;
   const v = parseVersion(current);
   const promotes = v.pre.length > 0;
-  if (spec === 'major') return formatVersion({ major: promotes && v.minor === 0 && v.patch === 0 ? v.major : v.major + 1, minor: 0, patch: 0, pre: [] });
-  if (spec === 'minor') return formatVersion({ major: v.major, minor: promotes && v.patch === 0 ? v.minor : v.minor + 1, patch: 0, pre: [] });
-  if (spec === 'patch') return formatVersion({ major: v.major, minor: v.minor, patch: promotes ? v.patch : v.patch + 1, pre: [] });
-  throw new Error(`Unknown bump "${spec}". Use major, minor, patch, or an explicit version such as 1.2.3 or 1.3.0-beta.1`);
+  if (spec === 'major')
+    return formatVersion({
+      major: promotes && v.minor === 0 && v.patch === 0 ? v.major : v.major + 1,
+      minor: 0,
+      patch: 0,
+      pre: [],
+    });
+  if (spec === 'minor')
+    return formatVersion({
+      major: v.major,
+      minor: promotes && v.patch === 0 ? v.minor : v.minor + 1,
+      patch: 0,
+      pre: [],
+    });
+  if (spec === 'patch')
+    return formatVersion({ major: v.major, minor: v.minor, patch: promotes ? v.patch : v.patch + 1, pre: [] });
+  throw new Error(
+    `Unknown bump "${spec}". Use major, minor, patch, or an explicit version such as 1.2.3 or 1.3.0-beta.1`,
+  );
 }
 
 // --- consistency ---------------------------------------------------------------------------------------
@@ -73,15 +90,26 @@ export function problems(r: RepoVersions, opts: { tag?: string; requireChangelog
   const version = r.manifest.version;
   if (!version || !SEMVER_RE.test(version)) return [`manifest.json: "${version ?? ''}" is not a valid SemVer version`];
 
-  for (const [file, v] of Object.entries(r.packages)) if (v !== version) out.push(`${file}: version is ${v ?? 'missing'}, manifest.json says ${version}`);
-  for (const [path, v] of Object.entries(r.lock)) if (v !== version) out.push(`package-lock.json (${path || 'root'}): version is ${v ?? 'missing'}, manifest.json says ${version}`);
+  for (const [file, v] of Object.entries(r.packages))
+    if (v !== version) out.push(`${file}: version is ${v ?? 'missing'}, manifest.json says ${version}`);
+  for (const [path, v] of Object.entries(r.lock))
+    if (v !== version)
+      out.push(`package-lock.json (${path || 'root'}): version is ${v ?? 'missing'}, manifest.json says ${version}`);
 
   if (!r.manifest.minAppVersion) out.push('manifest.json: minAppVersion is missing');
-  else if (r.versions[version] !== r.manifest.minAppVersion) out.push(`versions.json: "${version}" should map to ${r.manifest.minAppVersion} (manifest minAppVersion), found ${r.versions[version] ?? 'nothing'}`);
-  for (const v of Object.keys(r.versions)) if (!SEMVER_RE.test(v)) out.push(`versions.json: "${v}" is not a valid SemVer version`);
+  else if (r.versions[version] !== r.manifest.minAppVersion)
+    out.push(
+      `versions.json: "${version}" should map to ${r.manifest.minAppVersion} (manifest minAppVersion), found ${r.versions[version] ?? 'nothing'}`,
+    );
+  for (const v of Object.keys(r.versions))
+    if (!SEMVER_RE.test(v)) out.push(`versions.json: "${v}" is not a valid SemVer version`);
 
-  if (opts.tag !== undefined && opts.tag !== version) out.push(`the tag "${opts.tag}" does not match the version ${version}: Obsidian requires the release tag to equal manifest.json's version (no "v" prefix)`);
-  if (opts.requireChangelog && extractNotes(r.changelog, version) === null) out.push(`CHANGELOG.md has no filled-in "## [${version}]" section`);
+  if (opts.tag !== undefined && opts.tag !== version)
+    out.push(
+      `the tag "${opts.tag}" does not match the version ${version}: Obsidian requires the release tag to equal manifest.json's version (no "v" prefix)`,
+    );
+  if (opts.requireChangelog && extractNotes(r.changelog, version) === null)
+    out.push(`CHANGELOG.md has no filled-in "## [${version}]" section`);
   return out;
 }
 
@@ -116,13 +144,17 @@ export function unreleasedNotes(changelog: string): string {
  */
 export function promoteUnreleased(changelog: string, version: string, date: string): string {
   if (!UNRELEASED_RE.test(changelog)) throw new Error('CHANGELOG.md has no "## [Unreleased]" section');
-  if (!unreleasedNotes(changelog)) throw new Error('Nothing under "## [Unreleased]" in CHANGELOG.md: describe the changes before releasing');
+  if (!unreleasedNotes(changelog))
+    throw new Error('Nothing under "## [Unreleased]" in CHANGELOG.md: describe the changes before releasing');
   let out = changelog.replace(UNRELEASED_RE, `## [Unreleased]\n\n## [${version}] - ${date}`);
 
   const link = /^\[Unreleased\]: (\S+?)\/compare\/(\S+?)\.\.\.HEAD[ \t]*$/m.exec(out);
   if (link) {
     const [line, repo, previous] = link as unknown as [string, string, string];
-    out = out.replace(line, `[Unreleased]: ${repo}/compare/${version}...HEAD\n[${version}]: ${repo}/compare/${previous}...${version}`);
+    out = out.replace(
+      line,
+      `[Unreleased]: ${repo}/compare/${version}...HEAD\n[${version}]: ${repo}/compare/${previous}...${version}`,
+    );
   }
   return out;
 }

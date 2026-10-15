@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "singleQuote": true,
+  "semi": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "package-lock.json",
+    "dev-vault/**",
+    "packages/plugin/dev/harness.js",
+    "docs/screenshots/**",
+    "LICENSE",
+    "**/*.md"
+  ]
+}

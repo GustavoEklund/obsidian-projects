@@ -51,7 +51,8 @@ Pre-releases use a SemVer suffix, such as `0.3.0-beta.1`. They are published as 
 You need a clean checkout of `main` with the changes merged. Along the way, every user-visible change should
 already have been described under `## [Unreleased]` in the CHANGELOG (see [CONTRIBUTING](CONTRIBUTING.md)).
 
-1. **Verify.** `npm run check`, plus `npm run test:obsidian` (it needs the Obsidian desktop app, so CI does not run it).
+1. **Verify.** `npm run check` (every gate, see [CONTRIBUTING](CONTRIBUTING.md#quality-gates)), plus `npm run test:obsidian` if you
+   have the Obsidian desktop app (CI runs it too, on a pinned version).
 2. **Preview.** `npm run release -- minor --dry-run` prints the old and new version and refuses to continue
    when the working tree is dirty, the tag already exists, the version would not increase, or `## [Unreleased]` is empty.
 3. **Release.** `npm run release -- minor` (or `major`, `patch`, or an explicit `0.3.0-beta.1`). It updates every file in
@@ -59,8 +60,8 @@ already have been described under `## [Unreleased]` in the CHANGELOG (see [CONTR
    `Release x.y.z` and creates the annotated tag `x.y.z`. Pass `--no-git` to only edit the files.
 4. **Publish.** `git push origin main x.y.z`. Pushing the tag starts the
    [Release workflow](.github/workflows/release.yml), which checks that the tag equals the version in
-   `manifest.json` (no `v` prefix: Obsidian requires it), runs the type check, the unit tests and the build, and
-   creates the GitHub release with the notes taken from the CHANGELOG.
+   `manifest.json` (no `v` prefix: Obsidian requires it), re-runs the static gates, the unit tests, the build, the
+   artifact gate and the CLI smoke test, and creates the GitHub release with the notes taken from the CHANGELOG.
 5. **Check.** Open the release and confirm the assets are there.
 
 Each release carries:

@@ -22,7 +22,7 @@ const legalNotice = [
   ' *',
   ` * This bundle includes yaml ${yamlPkg.version} (${yamlPkg.license}):`,
   ' *',
-  ...yamlLicense.map((l) => (` * ${l}`).trimEnd()),
+  ...yamlLicense.map((l) => ` * ${l}`.trimEnd()),
   ' */',
 ].join('\n');
 
@@ -82,7 +82,16 @@ for (const t of targets) {
   if (watch) {
     const ctx = await context({
       ...options,
-      plugins: [{ name: 'after', setup: (b) => b.onEnd(async () => { await t.after?.(); console.log(`✓ ${t.name} rebuilt`); }) }],
+      plugins: [
+        {
+          name: 'after',
+          setup: (b) =>
+            b.onEnd(async () => {
+              await t.after?.();
+              console.log(`✓ ${t.name} rebuilt`);
+            }),
+        },
+      ],
     });
     await ctx.watch();
   } else {

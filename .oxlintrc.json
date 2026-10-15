@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "ignorePatterns": ["**/dist/**", "coverage/**", "dev-vault/**", "packages/plugin/dev/harness.js"],
+  "rules": {
+    // The plugin and the core stay quiet: nothing is logged to the user's developer console by accident.
+    // (Scripts, the CLI and tests print on purpose; see the override below.)
+    "eslint/no-console": "error",
+    // Style rather than correctness: hoisting every helper out of its closure is not worth the churn.
+    "unicorn/consistent-function-scoping": "off",
+    // The plugin ships as ES2020 and must run on mobile webviews: Array#toSorted and #toReversed are too new.
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    // vitest's `expect(value, "message")` is how a failing assertion explains itself: allow the second argument.
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    // Typed mock parameters add noise to tests without catching bugs.
+    "vitest/require-mock-type-parameters": "off"
+  },
+  "overrides": [
+    {
+      // Dev-only code: the browser harness exposes a debugging global, and plain `on*` handlers are fine there.
+      "files": ["packages/plugin/dev/**", "scripts/**"],
+      "rules": {
+        "eslint/no-underscore-dangle": "off",
+        "unicorn/prefer-add-event-listener": "off"
+      }
+    },
+    {
+      // These print on purpose: command output, test and gate reports.
+      "files": ["packages/cli/**", "packages/*/test/**", "packages/plugin/dev/**", "scripts/**"],
+      "rules": { "eslint/no-console": "off" }
+    },
+    {
+      // Tests and drivers do things in order on purpose (click, then wait, then assert).
+      "files": ["packages/*/test/**", "packages/plugin/dev/**", "scripts/**"],
+      "rules": { "eslint/no-await-in-loop": "off" }
+    },
+    {
+      // Obsidian's API is used for its side effect: `new Setting(el)` adds a row, `new Notice(text)` shows a toast.
+      "files": ["packages/plugin/src/settings.ts", "packages/plugin/src/obsidian-platform.ts"],
+      "rules": { "eslint/no-new": "off" }
+    }
+  ]
+}

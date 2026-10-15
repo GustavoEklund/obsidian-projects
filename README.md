@@ -187,10 +187,15 @@ instead of re-parsing every note on startup.
 ## Development
 
 ```bash
-npm run check          # types + unit tests + build + UI tests
-npm test               # vitest (core, cli, the plugin's store/host)
+npm run check          # every quality gate, in the order CI runs them (see CONTRIBUTING.md)
+npm run lint           # Oxlint
+npm run format         # Oxfmt: formats the code (`format:check` only checks)
+npm run typecheck      # strict TypeScript
+npm test               # unit tests (vitest): core, cli, the plugin's store/host and its UI under jsdom
+npm run test:coverage  # the same, with coverage thresholds
 npm run test:ui        # browser: drags, filters, edits… on the real BoardUI (needs Chrome; CHROME=/path)
 npm run test:obsidian  # inside the real Obsidian, with a throwaway vault and profile (OBSIDIAN=/path)
+npm run test:smoke     # runs the built CLI as a real process against a throwaway vault
 npm run dev            # rebuilds on change
 npm run version:check  # every version in the repo agrees (part of `check`)
 npm run seed           # fills ./dev-vault with 24 sample cards
