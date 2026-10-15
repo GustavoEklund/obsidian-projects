@@ -23,7 +23,8 @@ export interface FixtureFile {
 
 export interface Generator {
   name: string;
-  generate: () => FixtureFile;
+  /** Generators that drive an asynchronous service return a promise. */
+  generate: () => FixtureFile | Promise<FixtureFile>;
 }
 
 /** A small seeded PRNG (mulberry32): the same seed always gives the same cases, on every machine. */
@@ -136,10 +137,13 @@ export async function loadGenerators(
 /** Writes every fixture; returns the names written. */
 export async function writeAll(generators: Generator[], dir: string = FIXTURE_DIR): Promise<string[]> {
   mkdirSync(dir, { recursive: true });
-  return generators.map((g) => {
-    writeFileSync(path.join(dir, `${g.name}.json`), render(g.generate()));
-    return g.name;
-  });
+  const written: string[] = [];
+  for (const g of generators) {
+    // one at a time: some generators set the process time zone
+    writeFileSync(path.join(dir, `${g.name}.json`), render(await g.generate()));
+    written.push(g.name);
+  }
+  return written;
 }
 
 /** What is out of date: fixtures that differ from their generator, are missing, or have no generator any more. */
@@ -148,7 +152,7 @@ export async function staleFixtures(generators: Generator[], dir: string = FIXTU
   for (const g of generators) {
     const file = path.join(dir, `${g.name}.json`);
     if (!existsSync(file)) problems.push(`${g.name}.json is missing: run \`npm run conformance\``);
-    else if (readFileSync(file, 'utf8') !== render(g.generate()))
+    else if (readFileSync(file, 'utf8') !== render(await g.generate()))
       problems.push(`${g.name}.json is out of date: run \`npm run conformance\` and commit the result`);
   }
   if (existsSync(dir)) {

@@ -37,6 +37,33 @@ pub trait Storage: Send + Sync {
     fn modify(&self, path: &str, f: &mut dyn FnMut(&str) -> Result<String>) -> Result<String>;
     fn remove(&self, path: &str) -> Result<()>;
     fn exists(&self, path: &str) -> bool;
+
+    /// A cheap fingerprint of the note as it is now, without reading it: two stamps of one path are equal when the note
+    /// did not change in between. `None` when the note is missing or this storage cannot tell (the default), in which
+    /// case a caller has to read the note to learn anything.
+    fn stamp(&self, _path: &str) -> Option<Stamp> {
+        None
+    }
+
+    /// [`Storage::list_markdown`] with each note's [`Stamp`] (`None` where it is unknown), for callers that keep a copy
+    /// of the notes and want to find out what changed without reading them all.
+    fn list_stamped(&self, folder: &str) -> Result<Vec<(String, Option<Stamp>)>> {
+        Ok(self
+            .list_markdown(folder)?
+            .into_iter()
+            .map(|path| {
+                let stamp = self.stamp(&path);
+                (path, stamp)
+            })
+            .collect())
+    }
+}
+
+/// What [`Storage::stamp`] returns: when the note was last modified (nanoseconds since the epoch) and how long it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Stamp {
+    pub modified_ns: u128,
+    pub len: u64,
 }
 
 /// [`Storage::modify`] with a closure that runs once, which is what nearly every caller has.
@@ -63,6 +90,10 @@ macro_rules! forward_storage {
             }
             fn remove(&self, path: &str) -> Result<()> { (**self).remove(path) }
             fn exists(&self, path: &str) -> bool { (**self).exists(path) }
+            fn stamp(&self, path: &str) -> Option<Stamp> { (**self).stamp(path) }
+            fn list_stamped(&self, folder: &str) -> Result<Vec<(String, Option<Stamp>)>> {
+                (**self).list_stamped(folder)
+            }
         }
     )+};
 }
@@ -131,6 +162,16 @@ impl Storage for MemoryStorage {
 
     fn exists(&self, path: &str) -> bool {
         locked(&self.files).contains_key(path)
+    }
+
+    /// A hash of the content: equal exactly when the content is (up to hash collisions, which tests can ignore).
+    fn stamp(&self, path: &str) -> Option<Stamp> {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+        locked(&self.files).get(path).map(|content| {
+            let mut hasher = DefaultHasher::new();
+            content.hash(&mut hasher);
+            Stamp { modified_ns: u128::from(hasher.finish()), len: content.len() as u64 }
+        })
     }
 }
 
@@ -237,7 +278,7 @@ impl FsStorage {
         Ok(parts.iter().collect())
     }
 
-    fn walk(&self, rel: &str, out: &mut Vec<String>) -> Result<()> {
+    fn walk(&self, rel: &str, out: &mut Vec<(String, Option<Stamp>)>, stamps: bool) -> Result<()> {
         let dir = self.abs(rel)?;
         let entries = match fs::read_dir(&dir) {
             Ok(entries) => entries,
@@ -253,9 +294,10 @@ impl FsStorage {
             let child = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
             let Ok(kind) = entry.file_type() else { continue }; // vanished while we were looking
             if kind.is_dir() {
-                self.walk(&child, out)?;
+                self.walk(&child, out, stamps)?;
             } else if kind.is_file() && name.ends_with(".md") {
-                out.push(child);
+                let stamp = if stamps { entry.metadata().ok().map(|m| stamp_of(&m)) } else { None };
+                out.push((child, stamp));
             }
         }
         Ok(())
@@ -301,6 +343,11 @@ fn split_name_ext(file_name: &str) -> (&str, &str) {
     }
 }
 
+fn stamp_of(meta: &fs::Metadata) -> Stamp {
+    let modified_ns = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
+    Stamp { modified_ns, len: meta.len() }
+}
+
 fn now_millis() -> u128 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis())
 }
@@ -311,9 +358,21 @@ const MAX_TRASH_ATTEMPTS: u32 = 10_000;
 impl Storage for FsStorage {
     fn list_markdown(&self, folder: &str) -> Result<Vec<String>> {
         let mut out = Vec::new();
-        self.walk(folder, &mut out)?;
-        out.sort_unstable();
+        self.walk(folder, &mut out, false)?;
+        let mut paths: Vec<String> = out.into_iter().map(|(path, _)| path).collect();
+        paths.sort_unstable();
+        Ok(paths)
+    }
+
+    fn list_stamped(&self, folder: &str) -> Result<Vec<(String, Option<Stamp>)>> {
+        let mut out = Vec::new();
+        self.walk(folder, &mut out, true)?;
+        out.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         Ok(out)
+    }
+
+    fn stamp(&self, path: &str) -> Option<Stamp> {
+        fs::metadata(self.abs(path).ok()?).ok().filter(fs::Metadata::is_file).map(|m| stamp_of(&m))
     }
 
     fn read(&self, path: &str) -> Result<String> {

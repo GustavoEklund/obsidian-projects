@@ -93,6 +93,28 @@ describe('McpProcess', () => {
     expect(rss).toBeLessThan(500);
   });
 
+  it('records the stdout lines that are not JSON', async () => {
+    const p = start({ FAKE_GARBAGE: '1' });
+    await p.request('initialize', { protocolVersion: '2025-06-18' }).catch(() => undefined);
+    expect(p.badStdout).toEqual(['this is not json']);
+  });
+
+  it('sends raw bytes to the server, which the fake ignores as it would any non-request', async () => {
+    const p = start();
+    await p.initialize();
+    p.sendRaw('{"jsonrpc":"2.0","method":"notifications/whatever"}\n');
+    await expect(p.callTool('still-works')).resolves.toBeDefined();
+  });
+
+  it('waits for the process to exit, and gives up after the timeout', async () => {
+    const p = start();
+    await p.initialize();
+    await expect(p.waitForExit(100)).rejects.toThrow('did not exit within 100 ms');
+    p.endInput();
+    expect((await p.waitForExit(3000)).code).toBe(0);
+    expect((await p.waitForExit(50)).code).toBe(0); // already gone: answers at once
+  });
+
   it('closes a server politely by ending its stdin, and close is idempotent', async () => {
     const p = start();
     await p.initialize();

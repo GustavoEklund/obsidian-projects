@@ -42,6 +42,8 @@ export class McpProcess {
   private stderrText = '';
   private exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
   private readonly exitPromise: Promise<void>;
+  /** Lines the server wrote to stdout that are not JSON: stdout belongs to the protocol, so there must be none. */
+  readonly badStdout: string[] = [];
   /** Server-initiated notifications, in arrival order. */
   readonly notifications: { method: string; params?: unknown }[] = [];
   /** Milliseconds from spawning the process to the `initialize` response (set by `initialize`). */
@@ -96,6 +98,7 @@ export class McpProcess {
     try {
       message = JSON.parse(line);
     } catch {
+      this.badStdout.push(line);
       this.failAll(new Error(`the server wrote something that is not JSON on stdout: ${line.slice(0, 200)}`));
       return;
     }
@@ -134,6 +137,34 @@ export class McpProcess {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
       this.write({ id, method, params });
     });
+  }
+
+  /** Writes bytes to the server's stdin exactly as given (for the tests that feed it garbage). */
+  sendRaw(data: string | Buffer): void {
+    this.child.stdin!.write(data);
+  }
+
+  /** Resolves when the server process has exited, with how; rejects after `timeoutMs`. */
+  async waitForExit(timeoutMs = 5000): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+    if (this.exited) return this.exited;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`the server did not exit within ${timeoutMs} ms. stderr: ${this.stderrText.trim()}`)),
+        timeoutMs,
+      );
+    });
+    try {
+      await Promise.race([this.exitPromise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+    return this.exited!;
+  }
+
+  /** Ends the server's stdin, the polite way to ask a stdio server to stop. */
+  endInput(): void {
+    this.child.stdin!.end();
   }
 
   notify(method: string, params?: unknown): void {

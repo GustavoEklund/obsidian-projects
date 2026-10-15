@@ -52,9 +52,49 @@ free number and retry if another writer (the plugin, the CLI) took it first.
 
 ## Transports
 
-- **stdio** (default): the client starts the server. Nothing to configure beyond the command.
-- **HTTP** (`--http`): a Streamable HTTP endpoint for one shared server across clients. It binds to `127.0.0.1`, requires a
-  bearer token, and rejects requests whose `Origin` is not local (DNS rebinding).
+### stdio (default)
+
+The client starts the server and talks to it over stdin and stdout; nothing to configure beyond the command
+(`claude mcp add obsidian-projects -- oprojects-mcp --vault <path>`). One process per client.
+
+### HTTP (`--http`)
+
+One shared server for several clients: `oprojects-mcp --http --token-file ~/.config/oprojects-mcp.token --vault <path>`.
+The implementation is `src/http.rs` (the server) and `src/token.rs` (the secret): the Streamable HTTP service of `rmcp`
+driven by `hyper` directly, with no web framework.
+
+- **Local only.** It binds to `127.0.0.1`. There is no `--host` flag on purpose: exposing the server to a network is a
+  different threat model (TLS, accounts) that this does not try to be.
+- **A bearer token is required.** Reachable is not allowed: every program of the user can reach a loopback port. The token is
+  given (`--token`, `$OPROJECTS_MCP_TOKEN`), kept in a file (`--token-file`, created with mode 0600 and reused on the next
+  start), or generated for the run (32 random bytes as hex, printed once on stderr with the exact `claude mcp add` command). A
+  given token is never printed back. It must have at least 16 visible ASCII characters. It is compared in constant time, and
+  the request pipeline checks it right after the path, before the protocol layer sees anything else about the request.
+- **DNS rebinding.** The protocol layer refuses a `Host` that is not a loopback name and any browser `Origin` other than this
+  server's own two (`http://127.0.0.1:<port>`, `http://localhost:<port>`); listing the origins also turns the check on, since an
+  empty list would turn it off.
+- **Stateless.** Every request is complete in itself, the server keeps no session, answers with plain JSON and builds a fresh
+  handler per request (cheap: the board and the tool router are shared). A restart loses nothing and an idle client costs no
+  memory.
+- **Bounded.** Request bodies up to 1 MiB (`413` above), 64 simultaneous connections (the next ones get `503` with
+  `Retry-After`), a 30 s deadline for a connection to send its headers (this also closes idle keep-alive connections and cuts
+  off a client that dribbles bytes), a 60 s deadline for a request (`408`), and a 5 s grace period at shutdown. Ctrl-C and
+  SIGTERM stop the server gracefully.
+- **Quiet.** stdout carries nothing. stderr tells where it listens and how to connect, never the token of a user and never a
+  request body.
+
+Measured with the release build (2.92 MB; the same binary without the HTTP code was 2.31 MB), a vault of 12 cards and then of
+2,000, an idle server after one request and again after 500 requests:
+
+| | 12 cards | 2,000 cards |
+| --- | --- | --- |
+| stdio, idle / after 500 calls | 4.7 / 4.7 MB | 10.6 / 10.8 MB |
+| HTTP, idle / after 500 requests | 4.8 / 4.9 MB | 10.7 / 10.8 MB |
+| `initialize` over stdio | 2 ms | 7 ms |
+
+Serving HTTP adds about 0.6 MB to the binary and nothing measurable to the memory in use: the difference between the modes is
+the index, not the transport. The tests (`tests/http.rs` in process, `scripts/mcp-tests/http.test.ts` against the binary with
+`fetch` and the official SDK client) hold the budgets: at most 8 MB idle, and at most 3 MB of growth over 500 requests.
 
 ## Safety
 

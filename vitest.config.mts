@@ -10,6 +10,7 @@ export default defineConfig({
       include: ['packages/*/src/**/*.ts', 'scripts/release.ts', 'scripts/release-lib.ts', 'scripts/quality/**/*.ts'],
       exclude: [
         'packages/cli/src/main.ts', // process bootstrap: exercised on the built bundle by scripts/smoke-test.mjs
+        'scripts/quality/mcp-perf.ts', // drives the real Rust binary: run by the CI binaries job (its pure part is mcp-perf-lib.ts)
         'packages/plugin/src/{main,view,settings,obsidian-platform}.ts', // Obsidian glue: exercised by `npm run test:obsidian`
       ],
       // A ratchet, not a goal: set a little under what the suite achieves, so that a real drop fails CI. Raise them

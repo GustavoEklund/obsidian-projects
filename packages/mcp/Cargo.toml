@@ -17,20 +17,27 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-rmcp = { version = "3.5", features = ["server", "transport-io"] }
+bytes = "1.12.1"
+getrandom = "0.4.3"
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", default-features = false, features = ["server", "http1"] }
+hyper-util = { version = "0.1.21", default-features = false, features = ["tokio", "server", "http1", "server-graceful"] }
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
+rmcp = { version = "3.5", features = ["server", "transport-io", "transport-streamable-http-server"] }
 saphyr-parser = "0.2.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
 thiserror = "2"
-tokio = { version = "1", features = ["rt", "macros", "io-std"] }
+time = { version = "0.3.55", default-features = false, features = ["local-offset"] }
+tokio = { version = "1", features = ["rt", "macros", "io-std", "net", "time", "sync", "signal", "io-util"] }
 unicode-normalization = "0.1.25"
 
 # The whole point of this server is a tiny memory footprint and instant startup, so the release build is tuned for both.
 [profile.release]
-opt-level = 3
+opt-level = "s"
 lto = true
 codegen-units = 1
-panic = "abort"
+panic = "unwind"
 strip = true
 
 [lints.rust]
@@ -42,4 +49,6 @@ all = { level = "warn", priority = -1 }
 
 [dev-dependencies]
 proptest = "1.12.0"
+rmcp = { version = "3.5", features = ["client", "server", "macros", "transport-io"] }
 tempfile = "3.27.0"
+tokio = { version = "1", features = ["rt", "macros", "io-util", "time", "sync"] }

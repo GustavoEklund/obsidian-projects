@@ -14,6 +14,7 @@
 //!   For the legacy forms V8 also accepts (`Oct 14 2026`, a date-time with no offset, ...) it returns `None`, which the
 //!   archiving rule reads as "not archived", the same as for any text that is not a date.
 use crate::error::{Error, Result};
+use crate::jscompat::{civil_from_days, days_from_civil};
 use crate::types::{BoardConfig, Card, CardType, Column, PRIORITIES, Placement, Priority};
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
@@ -42,45 +43,8 @@ pub struct CardFilter {
 
 // --- JavaScript string semantics ----------------------------------------------------------------------------------
 
-/// The characters JavaScript's `String.prototype.trim` and the regular expression `\s` treat as white space.
-/// Not the same set as Rust's `char::is_whitespace`: JavaScript includes U+FEFF and leaves out U+0085.
-pub fn is_js_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        '\u{9}'..='\u{d}'
-            | ' '
-            | '\u{a0}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{200a}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{202f}'
-            | '\u{205f}'
-            | '\u{3000}'
-            | '\u{feff}'
-    )
-}
-
-/// `text.trim()` as JavaScript does it.
-pub fn js_trim(text: &str) -> &str {
-    text.trim_matches(is_js_whitespace)
-}
-
-/// Compares two strings the way JavaScript's `<` does: by UTF-16 code units. That differs from Rust's byte order only
-/// when a supplementary character (an emoji, say) meets one of U+E000..U+FFFF, which sort the other way round.
-pub fn js_cmp(a: &str, b: &str) -> Ordering {
-    let (x, y) = (a.as_bytes(), b.as_bytes());
-    match x.iter().zip(y).position(|(p, q)| p != q) {
-        None => x.len().cmp(&y.len()),
-        Some(i) => {
-            let (p, q) = (x[i], y[i]);
-            // UTF-8 lead bytes: 0xEE and 0xEF start U+E000..U+FFFF, 0xF0 and up start the supplementary planes. In
-            // UTF-16 the latter begin with a surrogate (U+D800..U+DBFF), which is below U+E000.
-            let high_bmp = |v: u8| v == 0xEE || v == 0xEF;
-            if (high_bmp(p) && q >= 0xF0) || (p >= 0xF0 && high_bmp(q)) { q.cmp(&p) } else { p.cmp(&q) }
-        }
-    }
-}
+// One definition of each lives in `jscompat`; they are re-exported here because this module's callers have always had them.
+pub use crate::jscompat::{is_js_whitespace, js_cmp, js_trim};
 
 /// Lower-case, accent-free text for searching: NFD, combining marks U+0300..U+036F dropped, then lower-cased, in this
 /// order, exactly like the TypeScript `normalizeText`.
@@ -289,30 +253,6 @@ pub struct CivilDate {
     pub year: i32,
     pub month: u32,
     pub day: u32,
-}
-
-/// Days from 1970-01-01 to the given proleptic Gregorian date (Howard Hinnant's `days_from_civil`).
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
-    let y = if month <= 2 { year - 1 } else { year };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let doy = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + day - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146_097 + doe - 719_468
-}
-
-/// The inverse of [`days_from_civil`].
-fn civil_from_days(days: i64) -> (i64, i64, i64) {
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    (year, month, day)
 }
 
 impl CivilDate {
@@ -601,18 +541,6 @@ mod tests {
         assert!(!is_js_whitespace('\u{200b}'));
         assert_eq!(js_trim("\u{feff} a b \u{3000}"), "a b");
         assert_eq!(js_trim("\u{85}a\u{85}"), "\u{85}a\u{85}");
-    }
-
-    #[test]
-    fn js_cmp_orders_by_utf16_code_units() {
-        // U+10000 is a surrogate pair in UTF-16 (D800 DC00), which sorts BEFORE U+E000 there but after it in UTF-8.
-        assert_eq!(js_cmp("\u{10000}", "\u{e000}"), Ordering::Less);
-        assert_eq!(js_cmp("\u{e000}", "\u{10000}"), Ordering::Greater);
-        assert_eq!(js_cmp("\u{10000}", "\u{ffff}"), Ordering::Less);
-        assert_eq!(js_cmp("\u{1f600}", "\u{10000}"), Ordering::Greater);
-        assert_eq!(js_cmp("a", "b"), Ordering::Less);
-        assert_eq!(js_cmp("ab", "a"), Ordering::Greater);
-        assert_eq!(js_cmp("", ""), Ordering::Equal);
     }
 
     #[test]

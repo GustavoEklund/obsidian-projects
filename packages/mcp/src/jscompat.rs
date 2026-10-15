@@ -10,6 +10,24 @@
 //! `None`. A date-time without an offset is read as UTC here, where JavaScript reads it as local time; notes are
 //! written with explicit `Z` timestamps, so the difference only shows up in hand-edited notes.
 
+use std::cmp::Ordering;
+
+/// Compares two strings the way JavaScript's `<` does: by UTF-16 code units. That differs from Rust's byte order only
+/// when a supplementary character (an emoji, say) meets one of U+E000..U+FFFF, which sort the other way round.
+pub fn js_cmp(a: &str, b: &str) -> Ordering {
+    let (x, y) = (a.as_bytes(), b.as_bytes());
+    match x.iter().zip(y).position(|(p, q)| p != q) {
+        None => x.len().cmp(&y.len()),
+        Some(i) => {
+            let (p, q) = (x[i], y[i]);
+            // UTF-8 lead bytes: 0xEE and 0xEF start U+E000..U+FFFF, 0xF0 and up start the supplementary planes. In
+            // UTF-16 the latter begin with a surrogate (U+D800..U+DBFF), which is below U+E000.
+            let high_bmp = |v: u8| v == 0xEE || v == 0xEF;
+            if (high_bmp(p) && q >= 0xF0) || (p >= 0xF0 && high_bmp(q)) { q.cmp(&p) } else { p.cmp(&q) }
+        }
+    }
+}
+
 /// The code points `String.prototype.trim` removes: ECMAScript WhiteSpace plus LineTerminator.
 pub fn is_js_whitespace(c: char) -> bool {
     matches!(
@@ -224,6 +242,17 @@ pub fn wall_clock(ms: i64, offset_minutes: i32) -> (i64, i64, i64, i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn js_cmp_orders_by_utf16_code_units() {
+        assert_eq!(js_cmp("\u{10000}", "\u{e000}"), Ordering::Less);
+        assert_eq!(js_cmp("\u{e000}", "\u{10000}"), Ordering::Greater);
+        assert_eq!(js_cmp("\u{10000}", "\u{ffff}"), Ordering::Less);
+        assert_eq!(js_cmp("\u{1f600}", "\u{10000}"), Ordering::Greater);
+        assert_eq!(js_cmp("a", "b"), Ordering::Less);
+        assert_eq!(js_cmp("ab", "a"), Ordering::Greater);
+        assert_eq!(js_cmp("", ""), Ordering::Equal);
+    }
 
     #[test]
     fn trim_matches_javascript_not_rust() {

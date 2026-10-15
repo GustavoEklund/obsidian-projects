@@ -56,7 +56,7 @@ export async function createVault(count: number, options: { prefix?: string; me?
       labels: ['api', i % 5 ? 'backend' : 'ux'],
       due: `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`,
       estimate: 1 + (i % 8),
-      rank: ranks[Math.floor(i / STATUSES.length)]!,
+      rank: ranks[Math.floor((i - 1) / STATUSES.length)]!,
       created: now,
       updated: now,
       resolved: status === 'done' ? now : undefined,

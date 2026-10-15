@@ -25,10 +25,9 @@ fn digit_char(index: usize) -> char {
     DIGITS.as_bytes()[index] as char
 }
 
-/// JavaScript compares strings by UTF-16 code units, which differs from code point order above the BMP.
-pub fn compare_ranks(a: &str, b: &str) -> Ordering {
-    a.encode_utf16().cmp(b.encode_utf16())
-}
+/// JavaScript compares strings by UTF-16 code units, which differs from code point order above the BMP. This is the
+/// one comparison of the crate, defined in `jscompat`.
+pub use crate::jscompat::js_cmp as compare_ranks;
 
 /// A string strictly between `a` (empty means the start) and `b` (`None` means the end). Requires `a < b`.
 fn midpoint(a: &[char], b: Option<&[char]>) -> String {

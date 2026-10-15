@@ -1,5 +1,9 @@
 //! Loads the conformance corpus that `npm run conformance` generates from the TypeScript core.
 #![allow(dead_code)] // each test file uses a different part of this module
+pub mod fake_board;
+
+pub mod vaults;
+
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::PathBuf;

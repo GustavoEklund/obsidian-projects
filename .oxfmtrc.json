@@ -13,6 +13,8 @@
     "docs/screenshots/**",
     "LICENSE",
     "**/*.md",
-    "packages/mcp/tests/fixtures/**"
+    "packages/mcp/tests/fixtures/**",
+    "**/Cargo.toml",
+    "**/Cargo.lock"
   ]
 }

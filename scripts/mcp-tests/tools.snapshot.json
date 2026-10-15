@@ -1,0 +1,328 @@
+[
+  {
+    "name": "add_comment",
+    "description": "Add a Markdown comment to a card.",
+    "inputSchema": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "text": {
+          "description": "Markdown.",
+          "type": "string"
+        },
+        "author": {
+          "description": "Default: the author this server was started with.",
+          "type": "string"
+        }
+      },
+      "required": ["key", "text"],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "board_summary",
+    "description": "Cards per column with WIP limits, overdue and unassigned counts. A good first call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_card",
+    "description": "Create a card at the bottom of a column (default: the first).",
+    "inputSchema": {
+      "required": ["title"],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "description": "Column id or name. Default: the first column.",
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["task", "story", "bug", "epic"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["highest", "high", "medium", "low", "lowest"]
+        },
+        "assignee": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "due": {
+          "description": "`YYYY-MM-DD`, `today`, `tomorrow`, `+3d` or `+2w`.",
+          "type": "string"
+        },
+        "estimate": {
+          "type": "number"
+        },
+        "parent": {
+          "description": "Parent (epic) key.",
+          "type": "string"
+        },
+        "body": {
+          "description": "Description, in Markdown. `- [ ]` makes a checklist.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "delete_card",
+    "description": "Delete a card: its note goes to the vault's .trash.",
+    "inputSchema": {
+      "properties": {
+        "key": {
+          "description": "Card key: `OP-12`, or just `12`.",
+          "type": "string"
+        }
+      },
+      "required": ["key"],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "delete_comment",
+    "description": "Delete a comment.",
+    "inputSchema": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "comment_id": {
+          "description": "Id shown by get_card.",
+          "type": "string"
+        }
+      },
+      "required": ["key", "comment_id"],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "edit_comment",
+    "description": "Replace a comment's text.",
+    "inputSchema": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "comment_id": {
+          "description": "Id shown by get_card.",
+          "type": "string"
+        },
+        "text": {
+          "description": "The new text.",
+          "type": "string"
+        }
+      },
+      "required": ["key", "comment_id", "text"],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_card",
+    "description": "Read one card: fields, description and comments (with ids).",
+    "inputSchema": {
+      "properties": {
+        "key": {
+          "description": "Card key: `OP-12`, or just `12`.",
+          "type": "string"
+        }
+      },
+      "required": ["key"],
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_cards",
+    "description": "List cards in board order. Filters are ANDed; several values of one filter are alternatives. Old done cards need include_archived.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Column ids or names.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["task", "story", "bug", "epic"]
+          }
+        },
+        "priority": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["highest", "high", "medium", "low", "lowest"]
+          }
+        },
+        "assignee": {
+          "description": "Names, `me`, or `none` for unassigned.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parent": {
+          "description": "Parent (epic) key.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Words to find in title, description, labels and comments, ignoring case and accents.",
+          "type": "string"
+        },
+        "include_archived": {
+          "description": "Include done cards older than the archive limit.",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "Most cards to return. Default 50, max 200.",
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "move_card",
+    "description": "Move a card to a column, or reorder it with before/after another card.",
+    "inputSchema": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "column": {
+          "description": "Column id or name.",
+          "type": "string"
+        },
+        "before": {
+          "description": "Place above this card.",
+          "type": "string"
+        },
+        "after": {
+          "description": "Place below this card.",
+          "type": "string"
+        }
+      },
+      "required": ["key", "column"],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_card",
+    "description": "Change fields of a card: omit one to keep it, null clears assignee, due, estimate or parent. To change the column use move_card.",
+    "inputSchema": {
+      "required": ["key"],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["task", "story", "bug", "epic"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["highest", "high", "medium", "low", "lowest"]
+        },
+        "assignee": {
+          "description": "null removes the assignee.",
+          "type": ["string", "null"]
+        },
+        "labels": {
+          "description": "Replaces all labels.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "due": {
+          "description": "`YYYY-MM-DD`, `today`, `tomorrow`, `+3d` or `+2w`; null clears.",
+          "type": ["string", "null"]
+        },
+        "estimate": {
+          "description": "null clears.",
+          "type": ["number", "null"]
+        },
+        "parent": {
+          "description": "Parent (epic) key; null removes it.",
+          "type": ["string", "null"]
+        },
+        "body": {
+          "description": "Replaces the description; comments are kept.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  }
+]
