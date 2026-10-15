@@ -67,6 +67,8 @@ pub struct VaultBoard {
 
 impl VaultBoard {
     /// The vault's folder.
+    /// The vault folder as it was given, made absolute and cleaned of `.` and `..` (lexically: symbolic links are not
+    /// resolved, so on macOS `/var/...` stays `/var/...` and does not become `/private/var/...`).
     pub fn root(&self) -> &Path {
         &self.root
     }

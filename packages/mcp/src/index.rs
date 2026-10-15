@@ -168,6 +168,9 @@ impl Watching {
     /// written before the watch began and the caller should look at everything.
     fn follow_folder(&mut self) -> bool {
         if self.attached && !self.folder.is_dir() {
+            // Let go of the watch on the folder that went away (a handle on Windows, a stream on macOS), so that a new
+            // folder of the same name can be watched.
+            let _ = self.watcher.unwatch(&self.folder);
             self.attached = false;
         }
         if self.attached {
@@ -376,6 +379,9 @@ fn relative_note(path: &Path, roots: &[PathBuf], folder: &str) -> Option<String>
     Some(format!("{folder}/{}", parts.join("/")))
 }
 
+/// How often the worker checks that the cards folder is still the one being watched.
+const FOLDER_CHECK_EVERY: Duration = Duration::from_secs(1);
+
 fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOptions, mut watching: Option<Watching>) {
     shared.reconcile(); // the first load
     shared.finish_first_load();
@@ -384,9 +390,16 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
     let mut rescan = false;
     let mut first_pending_at: Option<Instant> = None;
     let mut next_reconcile = after(options.reconcile_every);
+    let mut next_check = after(FOLDER_CHECK_EVERY);
     loop {
         let busy = rescan || !pending.is_empty();
-        let wait = if busy { options.debounce } else { next_reconcile.saturating_duration_since(Instant::now()) };
+        let wait = if busy {
+            options.debounce
+        } else {
+            // Without a watcher there is no folder to follow: only the reconciliation has to wake the thread.
+            let due = if watching.is_some() { next_reconcile.min(next_check) } else { next_reconcile };
+            due.saturating_duration_since(Instant::now())
+        };
         match receiver.recv_timeout(wait) {
             Ok(Message::Changed(paths)) => {
                 if let Some(w) = watching.as_mut() {
@@ -413,8 +426,22 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
                     flush(shared, &mut pending, &mut rescan, &mut first_pending_at);
                     next_reconcile = after(options.reconcile_every);
                 } else {
-                    shared.reconcile();
-                    next_reconcile = after(options.reconcile_every);
+                    let now = Instant::now();
+                    if now >= next_reconcile {
+                        shared.reconcile();
+                        next_reconcile = after(options.reconcile_every);
+                    }
+                    if now >= next_check {
+                        next_check = after(FOLDER_CHECK_EVERY);
+                        // A watcher does not always say that the cards folder was deleted or came back: Windows ends
+                        // the watch without a word, and a folder removed in one go may produce no event for its
+                        // notes. Looking is one `stat`, so do it on a timer instead of trusting every back end.
+                        if let Some(w) = watching.as_mut()
+                            && follow_folder(shared, w)
+                        {
+                            rescan = true;
+                        }
+                    }
                 }
             }
         }

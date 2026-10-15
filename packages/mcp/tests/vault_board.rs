@@ -82,7 +82,9 @@ fn a_vault_without_settings_gets_the_default_board() {
     let dir = temp_vault();
     let board = open_vault(dir.path(), watching()).unwrap();
     assert_eq!(board.config(), &BoardConfig::default());
-    assert_eq!(board.root(), dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf()).as_path());
+    // The root is the path that was given (made absolute, lexically clean), not its canonical form: on macOS the temp
+    // folder is reached through the `/var` symlink and must stay spelled that way.
+    assert_eq!(board.root(), dir.path());
     assert!(board.list().unwrap().is_empty());
 
     let card = board.create(titled("First")).unwrap();

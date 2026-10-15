@@ -62,9 +62,16 @@ pub fn note_text(card: &Card) -> String {
 
 /// Writes the note of `card` under the vault's `Cards` folder, like another program (the plugin, a sync client) would.
 pub fn write_card(root: &Path, card: &Card) {
+    try_write_card(root, card).unwrap();
+}
+
+/// [`write_card`] that reports a failure instead of panicking. File operations that race each other can fail for a
+/// moment on Windows (a file that is being deleted refuses to be opened), which is not what a test about something
+/// else is asking about.
+pub fn try_write_card(root: &Path, card: &Card) -> std::io::Result<()> {
     let path = root.join(&card.path);
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, note_text(card)).unwrap();
+    fs::create_dir_all(path.parent().unwrap())?;
+    fs::write(path, note_text(card))
 }
 
 /// Writes `count` realistic notes `OP-1`..`OP-count`, spread over the four default columns with ascending ranks.
