@@ -310,6 +310,19 @@ describe('remove (to .trash)', () => {
     expect(contents.sort()).toEqual(['v0', 'v1', 'v2', 'v3', 'v4', 'v5']);
   });
 
+  it('does not lose notes when several are trashed at the same time (regression)', async () => {
+    // Checking that the trash name was free and renaming afterwards let parallel removals overwrite each other.
+    for (let i = 0; i < 8; i++) await storage.create(`Folder${i}/x.md`, `note ${i}`);
+    await Promise.all(Array.from({ length: 8 }, (_, i) => storage.remove(`Folder${i}/x.md`)));
+    const contents = await Promise.all((await names('.trash')).map((n) => onDisk(`.trash/${n}`)));
+    expect(contents.sort()).toEqual(Array.from({ length: 8 }, (_, i) => `note ${i}`));
+  });
+
+  it('leaves no placeholder in the trash when the note to remove does not exist', async () => {
+    await expect(storage.remove('Cards/ghost.md')).rejects.toThrow(NotFoundError);
+    expect(await names('.trash')).toEqual([]);
+  });
+
   it('keeps trashed notes out of listings', async () => {
     await storage.create('Cards/a.md', '');
     await storage.create('Cards/b.md', '');

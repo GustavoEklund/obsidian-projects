@@ -130,7 +130,10 @@ export class CardService {
       if (!isPriority(p)) throw new ValidationError(`Invalid priority "${p}" (${PRIORITIES.join(', ')})`);
 
     const now = this.now();
-    const cards = (await this.list()).filter((c) => query.includeArchived || !isArchivedDone(c, this.config, now));
+    // From the snapshot (an in-memory index when the caller has one), in board order whatever order it comes in.
+    const cards = sortCards(await this.snapshot(), this.config).filter(
+      (c) => query.includeArchived || !isArchivedDone(c, this.config, now),
+    );
     return filterCards(cards, filter, this.config);
   }
 

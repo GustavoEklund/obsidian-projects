@@ -824,3 +824,46 @@ describe('comments', () => {
     }
   });
 });
+
+describe('find with an injected snapshot', () => {
+  it('reads the snapshot instead of scanning the storage, and returns board order whatever order it comes in', async () => {
+    const source = service();
+    await source.create({ title: 'first' });
+    await source.create({ title: 'second', status: 'doing' });
+    await source.create({ title: 'third' });
+    const cards = await source.list();
+
+    const untouched = new MemoryStorage();
+    const scanned = vi.spyOn(untouched, 'listMarkdown');
+    const indexed = new CardService(untouched, config, { snapshot: () => [...cards].reverse() });
+
+    const found = await indexed.find({});
+    expect(found.map((c) => c.title)).toEqual(cards.map((c) => c.title));
+    expect(scanned).not.toHaveBeenCalled();
+  });
+
+  it('still filters, resolves `me` and column names, and hides old done cards', async () => {
+    const source = service();
+    await source.create({ title: 'mine', assignee: 'Ana', status: 'doing' });
+    await source.create({ title: 'theirs', assignee: 'Bruno' });
+    const cards = await source.list();
+    const indexed = new CardService(new MemoryStorage(), config, { snapshot: () => cards });
+
+    expect((await indexed.find({ assignee: ['me'] })).map((c) => c.title)).toEqual(['mine']);
+    expect((await indexed.find({ status: ['In Progress'] })).map((c) => c.title)).toEqual(['mine']);
+    expect((await indexed.find({ text: 'THEIRS' })).map((c) => c.title)).toEqual(['theirs']);
+  });
+
+  it('supports an asynchronous snapshot, like an index that is still loading', async () => {
+    const source = service();
+    await source.create({ title: 'late' });
+    const cards = await source.list();
+    const indexed = new CardService(new MemoryStorage(), config, {
+      snapshot: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return cards;
+      },
+    });
+    expect((await indexed.find()).map((c) => c.title)).toEqual(['late']);
+  });
+});

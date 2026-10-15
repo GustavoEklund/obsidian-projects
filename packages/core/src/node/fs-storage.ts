@@ -98,28 +98,44 @@ export class FsStorage implements Storage {
     const file = this.abs(rel);
     const trash = path.join(this.root, '.trash');
     await fs.mkdir(trash, { recursive: true });
-    const target = await this.freeTrashName(trash, path.parse(file));
+    const target = await this.claimTrashName(trash, path.parse(file));
+    // A folder cannot be renamed over a file, so a (rare) folder gives its claim up just before the move.
+    if (
+      await fs.lstat(file).then(
+        (s) => s.isDirectory(),
+        () => false,
+      )
+    )
+      await fs.rm(target, { force: true });
     try {
       await fs.rename(file, target);
     } catch (e) {
+      await fs.rm(target, { force: true }); // the placeholder claimed above (nothing to do if a folder gave it up)
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new NotFoundError(rel);
       throw e;
     }
   }
 
-  /** `name.md`, else `name <timestamp>.md`, else `name <timestamp>-2.md`...: never an existing file (rename would overwrite it). */
-  private async freeTrashName(
+  /**
+   * `name.md`, else `name <timestamp>.md`, else `name <timestamp>-2.md`...: never a name that is taken. The name is
+   * CLAIMED with an exclusive create (`wx`) and the rename that follows replaces that placeholder. Checking that the name
+   * is free and renaming afterwards would not do: `rename` overwrites, so two removals running at once (an MCP client
+   * deleting several notes with the same file name) both saw it free and the second destroyed the first.
+   */
+  private async claimTrashName(
     trash: string,
     { name, ext }: { name: string; ext: string },
     attempt = 0,
   ): Promise<string> {
     const label = attempt === 0 ? name : `${name} ${Date.now()}${attempt > 1 ? `-${attempt}` : ''}`;
     const target = path.join(trash, `${label}${ext}`);
-    const taken = await fs.access(target).then(
-      () => true,
-      () => false,
-    );
-    return taken ? this.freeTrashName(trash, { name, ext }, attempt + 1) : target;
+    try {
+      await fs.writeFile(target, '', { flag: 'wx' });
+      return target;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') return this.claimTrashName(trash, { name, ext }, attempt + 1);
+      throw e;
+    }
   }
 
   async exists(rel: string): Promise<boolean> {
