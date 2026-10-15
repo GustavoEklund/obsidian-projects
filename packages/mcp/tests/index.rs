@@ -2,9 +2,7 @@
 //! reconciliation, reading your own writes, and not reading what did not change.
 mod common;
 
-use common::vaults::{
-    PATIENCE, eventually, make_all_old, make_old, sample_card, temp_vault, write_card, write_vault_cards,
-};
+use common::vaults::{PATIENCE, eventually, make_all_old, sample_card, temp_vault, write_card, write_vault_cards};
 use oprojects_mcp::error::Result;
 use oprojects_mcp::index::{CardIndex, IndexOptions};
 use oprojects_mcp::service::CardSource;
@@ -787,6 +785,7 @@ fn a_snapshot_gives_up_waiting_for_a_slow_first_load_and_the_index_still_complet
 #[test]
 #[cfg(unix)]
 fn a_note_that_cannot_be_read_is_skipped_and_picked_up_when_it_can() {
+    use common::vaults::make_old;
     use std::os::unix::fs::PermissionsExt;
     let dir = temp_vault();
     write_card(dir.path(), &sample_card("OP-1", "todo", "V"));

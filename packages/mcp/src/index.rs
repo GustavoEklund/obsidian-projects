@@ -34,7 +34,7 @@ use crate::query::sort_cards;
 use crate::service::CardSource;
 use crate::storage::{Stamp, Storage};
 use crate::types::{BoardConfig, Card};
-use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher, event::ModifyKind};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -421,14 +421,41 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
     }
 }
 
-/// [`Watching::follow_folder`], keeping the `watching` statistic true to what happened.
+/// [`Watching::follow_folder`], keeping the `watching` statistic true to what happened. Returns whether the notes
+/// should be looked at again: the cards folder has just become watched (notes may have been written before the watch
+/// began) or has just gone away (the notes in it are gone, and some back ends do not say so note by note).
 fn follow_folder(shared: &Shared, watching: &mut Watching) -> bool {
     let attached_before = watching.attached;
     let just_attached = watching.follow_folder();
-    if watching.attached != attached_before {
+    let changed = watching.attached != attached_before;
+    if changed {
         locked(&shared.state).watching = watching.attached;
     }
-    just_attached
+    just_attached || changed
+}
+
+/// Whether an event means "look at everything". Some back ends (FSEvents on macOS) report a deleted, created or renamed
+/// folder as one event, with none for the notes inside it, so what it held would be kept after a deletion or missed after
+/// a move. Events about a note, or about a hidden file (the temporary files of atomic writes), are the ordinary kind,
+/// handled note by note.
+fn needs_rescan(kind: &EventKind, paths: &[PathBuf]) -> bool {
+    let structural = matches!(
+        kind,
+        EventKind::Create(_)
+            | EventKind::Remove(_)
+            | EventKind::Modify(ModifyKind::Name(_))
+            | EventKind::Any
+            | EventKind::Other
+    );
+    structural && paths.iter().any(|path| is_folder_like(path))
+}
+
+/// A path that is neither a note nor a hidden file: most likely a folder.
+fn is_folder_like(path: &Path) -> bool {
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some(name) => !name.starts_with('.') && !name.ends_with(".md"),
+        None => true,
+    }
 }
 
 fn flush(shared: &Shared, pending: &mut HashSet<String>, rescan: &mut bool, first_pending_at: &mut Option<Instant>) {
@@ -464,7 +491,11 @@ impl CardIndex {
             let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| match event {
                 Ok(event) if event.need_rescan() => drop(events.send(Message::Rescan)),
                 Ok(event) if !matches!(event.kind, EventKind::Access(_)) => {
-                    drop(events.send(Message::Changed(event.paths)))
+                    let look_at_everything = needs_rescan(&event.kind, &event.paths);
+                    drop(events.send(Message::Changed(event.paths)));
+                    if look_at_everything {
+                        drop(events.send(Message::Rescan));
+                    }
                 }
                 Ok(_) => {}
                 Err(_) => drop(events.send(Message::Rescan)),
@@ -584,5 +615,57 @@ impl Drop for CardIndex {
         if let Some(handle) = locked(&self.worker).take() {
             let _ = handle.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod folder_event_tests {
+    use super::*;
+    use notify::event::{CreateKind, DataChange, MetadataKind, RemoveKind, RenameMode};
+
+    fn paths(list: &[&str]) -> Vec<PathBuf> {
+        list.iter().map(PathBuf::from).collect()
+    }
+
+    #[test]
+    fn a_folder_that_is_removed_created_or_renamed_means_look_at_everything() {
+        assert!(needs_rescan(&EventKind::Remove(RemoveKind::Folder), &paths(&["/v/Cards"])));
+        assert!(needs_rescan(&EventKind::Create(CreateKind::Folder), &paths(&["/v/Cards/Sub"])));
+        assert!(needs_rescan(&EventKind::Modify(ModifyKind::Name(RenameMode::Both)), &paths(&["/v/Old", "/v/Cards"])));
+        assert!(needs_rescan(&EventKind::Remove(RemoveKind::Any), &paths(&["/v/Cards"])));
+        assert!(needs_rescan(&EventKind::Any, &paths(&["/v/Cards"])));
+    }
+
+    #[test]
+    fn a_note_or_a_hidden_file_is_the_ordinary_per_note_case() {
+        assert!(!needs_rescan(&EventKind::Remove(RemoveKind::File), &paths(&["/v/Cards/OP-1.md"])));
+        assert!(!needs_rescan(&EventKind::Create(CreateKind::File), &paths(&["/v/Cards/OP-2.md"])));
+        assert!(!needs_rescan(&EventKind::Create(CreateKind::File), &paths(&["/v/Cards/.OP-2.md.123.4.tmp"])));
+        assert!(!needs_rescan(&EventKind::Remove(RemoveKind::File), &paths(&["/v/Cards/.OP-2.md.123.4.tmp"])));
+        assert!(!needs_rescan(
+            &EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
+            &paths(&["/v/Cards/.a.tmp", "/v/Cards/a.md"])
+        ));
+    }
+
+    #[test]
+    fn a_change_of_content_or_metadata_is_never_structural() {
+        assert!(!needs_rescan(&EventKind::Modify(ModifyKind::Data(DataChange::Content)), &paths(&["/v/Cards"])));
+        assert!(!needs_rescan(&EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)), &paths(&["/v/Cards"])));
+        assert!(!needs_rescan(&EventKind::Access(notify::event::AccessKind::Any), &paths(&["/v/Cards"])));
+    }
+
+    #[test]
+    fn one_folder_like_path_among_notes_is_enough_and_a_root_counts_as_one() {
+        assert!(needs_rescan(&EventKind::Remove(RemoveKind::Any), &paths(&["/v/Cards/OP-1.md", "/v/Cards/Sub"])));
+        assert!(needs_rescan(&EventKind::Remove(RemoveKind::Any), &paths(&["/"])));
+        assert!(!needs_rescan(&EventKind::Remove(RemoveKind::Any), &paths(&[])));
+    }
+
+    #[test]
+    fn a_visible_file_that_is_not_a_note_costs_one_harmless_rescan() {
+        assert!(is_folder_like(Path::new("/v/Cards/cover.png")));
+        assert!(!is_folder_like(Path::new("/v/Cards/.hidden")));
+        assert!(!is_folder_like(Path::new("/v/Cards/OP-1.md")));
     }
 }
