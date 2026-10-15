@@ -150,7 +150,7 @@ jobs:
       # The server is all file-system work (atomic writes, watchers, trash): it is tested on every platform it ships for.
       - name: Tests (including the conformance corpus generated from the TypeScript core)
         working-directory: packages/mcp
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       - name: Release build
         if: runner.os == 'Linux'
         working-directory: packages/mcp

@@ -231,16 +231,22 @@ fn resolve(path: &Path) -> Vec<OsString> {
     let mut parts: Vec<OsString> = Vec::new();
     let absolute: PathBuf =
         if path.is_absolute() { path.to_owned() } else { std::env::current_dir().unwrap_or_default().join(path) };
+    // How many leading components are the root itself: `/` on Unix, but `C:` and `\` on Windows. A `..` never climbs
+    // above them: `/..` is `/` and `C:\..` is `C:\`.
+    let mut anchor = 0;
     for component in absolute.components() {
         match component {
             Component::CurDir => {}
             Component::ParentDir => {
-                // `/..` is `/`
-                if parts.len() > 1 {
+                if parts.len() > anchor {
                     parts.pop();
                 }
             }
-            other => parts.push(other.as_os_str().to_owned()),
+            Component::Prefix(_) | Component::RootDir => {
+                parts.push(component.as_os_str().to_owned());
+                anchor = parts.len();
+            }
+            Component::Normal(_) => parts.push(component.as_os_str().to_owned()),
         }
     }
     parts
@@ -475,9 +481,21 @@ mod tests {
     fn resolve_cleans_paths_lexically() {
         let parts =
             |p: &str| resolve(Path::new(p)).iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
-        assert_eq!(parts("/a/b/../c/./d"), ["/", "a", "c", "d"]);
-        assert_eq!(parts("/.."), ["/"]);
-        assert_eq!(parts("/a//b/"), ["/", "a", "b"]);
+        #[cfg(unix)]
+        {
+            assert_eq!(parts("/a/b/../c/./d"), ["/", "a", "c", "d"]);
+            assert_eq!(parts("/.."), ["/"]);
+            assert_eq!(parts("/a//b/"), ["/", "a", "b"]);
+            assert_eq!(parts("/../../a"), ["/", "a"]);
+        }
+        // On Windows the root is two components (`C:` and `\\`), and `..` must stop below both of them.
+        #[cfg(windows)]
+        {
+            assert_eq!(parts(r"C:\a\b\..\c\.\d"), ["C:", "\\", "a", "c", "d"]);
+            assert_eq!(parts(r"C:\.."), ["C:", "\\"]);
+            assert_eq!(parts(r"C:\a\\b\"), ["C:", "\\", "a", "b"]);
+            assert_eq!(parts(r"C:\..\..\a"), ["C:", "\\", "a"]);
+        }
     }
 
     #[test]

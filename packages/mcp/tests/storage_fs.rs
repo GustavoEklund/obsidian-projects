@@ -319,7 +319,11 @@ fn file_names_that_are_not_utf8_do_not_break_the_listing() {
         let (dir, s) = vault();
         s.create("Cards/ok.md", "").unwrap();
         let odd = std::ffi::OsStr::from_bytes(b"Cards/bad-\xff.md");
-        fs::write(dir.path().join(odd), "").unwrap();
+        if let Err(e) = fs::write(dir.path().join(odd), "") {
+            // macOS file systems refuse names that are not valid UTF-8: there is nothing to list.
+            eprintln!("skipped: this file system does not accept names that are not UTF-8 ({e})");
+            return;
+        }
         let listed = s.list_markdown("Cards").unwrap();
         assert_eq!(listed.len(), 2);
         assert!(listed.contains(&"Cards/ok.md".to_owned()));
