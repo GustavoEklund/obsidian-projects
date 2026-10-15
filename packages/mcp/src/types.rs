@@ -159,6 +159,41 @@ impl Default for BoardConfig {
     }
 }
 
+/// Fields a caller may change. For the optional fields the outer `Option` says whether to touch the field and the inner
+/// one is the new value, where `None` clears it (`null` in the TypeScript).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CardPatch {
+    pub title: Option<String>,
+    pub status: Option<String>,
+    pub card_type: Option<CardType>,
+    pub priority: Option<Priority>,
+    pub assignee: Option<Option<String>>,
+    pub labels: Option<Vec<String>>,
+    pub due: Option<Option<String>>,
+    pub estimate: Option<Option<f64>>,
+    pub parent: Option<Option<String>>,
+    pub rank: Option<String>,
+    /// Replaces the description; the comments section is preserved.
+    pub body: Option<String>,
+}
+
+/// What it takes to create a card.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NewCardInput {
+    pub title: String,
+    pub status: Option<String>,
+    pub card_type: Option<CardType>,
+    pub priority: Option<Priority>,
+    pub assignee: Option<String>,
+    pub labels: Option<Vec<String>>,
+    pub due: Option<String>,
+    pub estimate: Option<f64>,
+    pub parent: Option<String>,
+    pub body: Option<String>,
+    /// Explicit rank; defaults to the bottom of the target column.
+    pub rank: Option<String>,
+}
+
 /// Where to drop a card inside a column. Neither means the bottom.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Placement {
