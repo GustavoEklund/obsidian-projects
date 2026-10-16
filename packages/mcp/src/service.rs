@@ -373,12 +373,13 @@ impl<S: Storage> CardService<S> {
                     return parse_card(&path, &content)
                         .ok_or_else(|| Error::Format(format!("the note just written for {} is not a card", card.key)));
                 }
-                // Someone (the plugin, the CLI, another server) took this number first. Look at what is on disk now
-                // instead of only trying the next number: two writers that run in step would otherwise collide again
-                // and again (found on Windows). The short random pause pulls them out of step.
+                // Someone (the plugin, the CLI, another server) took this number first. Wait a little, at random so
+                // that two writers that collided do not wake up together, and only then look at what is on disk: a
+                // number read before the pause is stale after it when the other writer is busy (found on Windows,
+                // where two writers collided again and again and gave up after eight tries).
                 Err(Error::FileExists(_)) => {
-                    n = f64::max(n + 1.0, self.highest_key_on_disk()? + 1.0);
                     std::thread::sleep(collision_pause(attempt));
+                    n = f64::max(n + 1.0, self.highest_key_on_disk()? + 1.0);
                 }
                 Err(e) => return Err(e),
             }
