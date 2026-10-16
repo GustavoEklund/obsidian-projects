@@ -13,6 +13,12 @@ import { CardService } from '@oprojects/core';
 import { FsStorage, loadBoardConfig } from '@oprojects/core/node';
 import { createVault, type TestVault } from '../mcp/vault';
 import { HttpServerProcess, TOKEN, callTool, eventually, rpc, toolText } from './http-support';
+
+/**
+ * The server writes its start-up lines one after the other, and `start()` returns as soon as it hears the address: a test
+ * about a later line waits for that line instead of racing it (it failed once in CI, never locally).
+ */
+const shows = (server: { stderr: string }, text: string) => eventually(() => server.stderr.includes(text));
 import { binaryPath } from './support';
 
 interface Running {
@@ -332,6 +338,7 @@ describe('tokens', () => {
     cleanups.push(() => vault.cleanup());
     const server = await HttpServerProcess.start(['--vault', vault.root]);
     cleanups.push(() => server.stop('SIGKILL').then(() => undefined));
+    await shows(server, 'claude mcp add --transport http obsidian-projects');
     const token = /token \(generated for this run only\): ([0-9a-f]{64})/.exec(server.stderr)?.[1];
     expect(token, server.stderr).toBeDefined();
     expect(server.stderr).toContain(`Bearer ${token}`);
@@ -341,6 +348,7 @@ describe('tokens', () => {
 
     const second = await HttpServerProcess.start(['--vault', vault.root]);
     cleanups.push(() => second.stop('SIGKILL').then(() => undefined));
+    await shows(second, 'generated for this run only');
     expect(/generated for this run only\): ([0-9a-f]{64})/.exec(second.stderr)?.[1]).not.toBe(token);
   });
 
@@ -348,8 +356,8 @@ describe('tokens', () => {
     const secret = 'from-the-environment-0123456789';
     const { server } = await start({ args: [], env: { OPROJECTS_MCP_TOKEN: secret } });
     expect((await rpc(server.url, 'tools/list', {}, { token: secret })).status).toBe(200);
+    await shows(server, '<your token>');
     expect(server.stderr).not.toContain(secret);
-    expect(server.stderr).toContain('<your token>');
   });
 
   it('keeps the token in a file: created readable by its owner only, then reused by the next start', async () => {
@@ -357,7 +365,8 @@ describe('tokens', () => {
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
     const file = path.join(dir, 'mcp.token');
     const first = await start({ args: ['--token-file', file] });
-    expect(first.server.stderr).toContain(`token file ${file} (created)`);
+    await shows(first.server, `token file ${file} (created)`);
+    await shows(first.server, `$(cat ${file})`);
     const token = readFileSync(file, 'utf8').trim();
     expect(token).toMatch(/^[0-9a-f]{64}$/);
     expect(statSync(file).mode & 0o777).toBe(0o600);
@@ -366,11 +375,11 @@ describe('tokens', () => {
     await first.server.stop();
 
     const second = await start({ args: ['--token-file', file] });
-    expect(second.server.stderr).toContain(`token file ${file} (in use)`);
+    await shows(second.server, `token file ${file} (in use)`);
+    await shows(second.server, `$(cat ${file})`);
     expect(second.server.stderr).not.toContain(token);
     expect((await rpc(second.server.url, 'tools/list', {}, { token })).status).toBe(200);
     expect(readFileSync(file, 'utf8').trim()).toBe(token);
-    expect(second.server.stderr).toContain(`$(cat ${file})`);
   });
 
   it('refuses to start with a token that is too short, without echoing it, and a bad token file', async () => {

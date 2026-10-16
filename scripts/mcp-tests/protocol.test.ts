@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { McpProcess, RpcError } from '../mcp/client';
 import { at } from '../quality/lib';
 import { binaryPath, repoVersion, withServer } from './support';
@@ -133,7 +133,8 @@ describe('stdout belongs to the protocol', () => {
       await server.callTool('board_summary');
       await server.callTool('list_cards', { limit: 2 });
       expect(server.badStdout).toEqual([]);
-      expect(server.stderr).toContain('oprojects-mcp: serving board OP');
+      // stderr and stdout are separate pipes: wait for the line instead of assuming it arrived with the first answer.
+      await vi.waitFor(() => expect(server.stderr).toContain('oprojects-mcp: serving board OP'));
     });
   });
 
