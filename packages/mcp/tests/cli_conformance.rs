@@ -38,6 +38,41 @@ fn normalize_error(err: &str) -> String {
     text
 }
 
+/// A path below the vault is written with the platform's separator (`<vault>\Cards` on Windows, or `<vault>\\Cards` inside
+/// a JSON string); the corpus has `/`. Only on Windows, where a backslash followed by a name is a path.
+fn forward_slashes_after(text: &str, placeholder: &str) -> String {
+    if !cfg!(windows) {
+        return text.to_string();
+    }
+    let is_name = |c: char| c.is_alphanumeric() || matches!(c, '.' | '_' | '-' | '~' | '$');
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(placeholder) {
+        let (head, mut tail) = rest.split_at(at + placeholder.len());
+        out.push_str(head);
+        loop {
+            let separator = if tail.starts_with("\\\\") {
+                2
+            } else if tail.starts_with('\\') {
+                1
+            } else {
+                0
+            };
+            if separator == 0 || !tail[separator..].chars().next().is_some_and(is_name) {
+                break;
+            }
+            out.push('/');
+            tail = &tail[separator..];
+            let end = tail.find(|c: char| !is_name(c)).unwrap_or(tail.len());
+            out.push_str(&tail[..end]);
+            tail = &tail[end..];
+        }
+        rest = tail;
+    }
+    out.push_str(rest);
+    out
+}
+
 fn list_files(root: &Path, dir: &str, out: &mut Vec<String>) {
     let mut entries: Vec<_> = fs::read_dir(root.join(dir)).unwrap().map(|e| e.unwrap()).collect();
     entries.sort_by_key(|e| e.file_name());
@@ -110,6 +145,7 @@ fn invoke(inv: &Value, root: &str, outside: &str, ids: &[String], next_id: &Arc<
         let mut text = String::from_utf8_lossy(&bytes).into_owned();
         for (path, placeholder) in [(root, "<vault>"), (outside, "<outside>")] {
             text = text.replace(&path.replace('\\', "\\\\"), placeholder).replace(path, placeholder);
+            text = forward_slashes_after(&text, placeholder);
         }
         text
     };

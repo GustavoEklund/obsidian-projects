@@ -6,6 +6,7 @@
 //   npm run build -w packages/mcp && npm run check:cli-perf [-- --cards 2000] [-- --bin <path>] [-- --json]
 import { spawnSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
+import * as path from 'node:path';
 import { createVault } from '../mcp/vault';
 import { at, finish, isMain } from './lib';
 import { median, overBudget, report, type Measurements } from './cli-perf-lib';
@@ -19,7 +20,8 @@ function timeRun(bin: string, args: string[], cwd: string): number {
     env: { ...process.env, OPROJECTS_VAULT: '', NO_COLOR: '1' },
   });
   const elapsed = performance.now() - started;
-  if (ran.status !== 0) throw new Error(`oprojects ${args.join(' ')} failed (${ran.status}): ${ran.stderr}`);
+  if (ran.status !== 0)
+    throw new Error(`oprojects ${args.join(' ')} failed (${ran.status}): ${ran.error?.message ?? ran.stderr}`);
   return elapsed;
 }
 
@@ -50,7 +52,8 @@ if (isMain(import.meta.url)) {
     const position = process.argv.indexOf(name);
     return position >= 0 ? process.argv[position + 1] : undefined;
   };
-  const bin = arg('--bin') ?? at(`packages/mcp/target/release/oprojects${process.platform === 'win32' ? '.exe' : ''}`);
+  // absolute, because the program runs with the vault as its working folder
+  const bin = path.resolve(arg('--bin') ?? at(`packages/mcp/target/release/oprojects${process.platform === 'win32' ? '.exe' : ''}`));
   const cards = Number(arg('--cards') ?? 2000);
   if (!existsSync(bin)) {
     console.error(`${bin} does not exist: build it first with \`npm run build -w packages/mcp\`.`);
