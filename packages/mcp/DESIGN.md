@@ -114,3 +114,33 @@ network requests of its own.
 `list_cards`, `get_card`, `create_card`, `update_card`, `move_card`, `delete_card`, `add_comment`, `edit_comment`,
 `delete_comment`, `board_summary`. Results are compact text, one line per card in lists, with a default `limit`, because
 what the agent reads costs context.
+
+## The command line (`oprojects`)
+
+The same crate holds a second program, the `oprojects` command line, which replaced the Node one in `packages/cli`. It
+uses everything above (the service, the storage, the dates, the board configuration) and adds the part that is about a
+terminal: `src/cli/`.
+
+- **`parse.rs`** is a port of Node's `util.parseArgs` in strict mode, because that is what the TypeScript command line
+  uses and its rules are not those of most libraries: an option's value is the next argument even when it starts with a
+  dash (and is then refused as ambiguous), `-sdoing` is `-s doing`, `-abc` is three flags. Reading the arguments the same
+  way is what makes every old command line keep its meaning.
+- **`render.rs`** draws the table, the board and one card. It counts characters, not what a terminal shows.
+- **`commands.rs`** is one function per command, in the order the TypeScript checked things, so that a command line with
+  two mistakes reports the same one.
+- **`json.rs`** writes `--json` the way `JSON.stringify(value, null, 2)` does (a whole number is `3`, not `3.0`).
+- **`Io`** is everything the program talks to: the terminal (colors, width), the environment, standard input, the clock, the
+  system opener. `cli::run(args, &mut io)` returns the exit code, so the corpus replays every command line in the test
+  process and `src/bin/oprojects.rs` only connects it to the real thing.
+
+It is proved the same way as the rest: `scripts/conformance/cli.fixture.ts` runs the TypeScript command line on real
+temporary vaults (more than 2,300 invocations: every command, every option, usage mistakes, colors, widths, standard input,
+random sequences) and records the exit code, both outputs and every file in the vault at the end; `tests/cli_conformance.rs`
+replays them. `tests/cli_process.rs` runs the real binary for what only a process shows (terminal detection, a closed pipe,
+the time zone). A mutation run over the corpus (change one detail of the renderer or a command, run the replay) is how its
+blind spots were found; repeat it when the command line changes.
+
+Known differences from the Node version, all in places where the Node one depended on its runtime: the text of the
+messages that `parseArgs` writes for an unknown option or a missing value (the Rust one has the same words but closes the
+quote that Node leaves open), a comment time that is not an ISO timestamp (shown blank, where Node's legacy date parser
+reads it), and the time zone offset, which is the current one rather than the one in force at the date shown.

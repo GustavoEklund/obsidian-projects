@@ -8,6 +8,7 @@ pub mod api;
 pub mod args;
 pub mod body;
 pub mod card;
+pub mod cli;
 pub mod config;
 pub mod due;
 pub mod error;

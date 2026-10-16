@@ -22,7 +22,7 @@ version for the three pieces. You can install just the ones you want.
 | Piece | Download | Needs |
 | --- | --- | --- |
 | Plugin | `main.js`, `manifest.json`, `styles.css` (or `obsidian-projects-<version>.zip`) | Obsidian ≥ 1.8.0 |
-| CLI | `oprojects.cjs` | Node ≥ 20 |
+| CLI | `oprojects-<version>-<platform>` (`.tar.gz`, or `.zip` for Windows) | nothing: it is a single static binary |
 | MCP server | `oprojects-mcp-<version>-<platform>` (`.tar.gz`, or `.zip` for Windows) | nothing: it is a single static binary |
 
 ### Install the plugin
@@ -34,10 +34,18 @@ add `GustavoEklund/obsidian-projects` as a beta plugin.
 
 ### Install the CLI
 
+Download the archive for your platform from the [latest release](https://github.com/GustavoEklund/obsidian-projects/releases/latest)
+(`oprojects-<version>-<platform>`: Linux x64 and arm64, both static; macOS Intel and Apple Silicon; Windows x64 and arm64),
+unpack it and put `oprojects` (`oprojects.exe` on Windows) on your `PATH`, for example on Linux:
+
 ```bash
-curl -L -o ~/.local/bin/oprojects https://github.com/GustavoEklund/obsidian-projects/releases/latest/download/oprojects.cjs
-chmod +x ~/.local/bin/oprojects
+tar -xzf oprojects-<version>-x86_64-unknown-linux-musl.tar.gz
+install oprojects-<version>-x86_64-unknown-linux-musl/oprojects ~/.local/bin/
 ```
+
+To update, do the same with the new release. On macOS the binary is not signed: run `xattr -d com.apple.quarantine oprojects`
+once. Before 0.3.0 the CLI was a Node program, `oprojects.cjs`; it is deprecated and will not be attached to releases
+after this one, so replace it with the native `oprojects`.
 
 Then, from any folder inside a vault:
 
@@ -58,17 +66,17 @@ See [MCP server → Install](#install) below.
 
 ### From source
 
-Requires Node ≥ 20.
+Requires Node ≥ 20, and the Rust toolchain pinned in `.tool-versions` (`asdf install`) for the command line and the MCP server.
 
 ```bash
 npm install
-npm run build
+npm run build                       # the plugin (and the deprecated Node command line)
+npm run build -w packages/mcp       # oprojects and oprojects-mcp, in packages/mcp/target/release/
 npm run install:vault -- "/path/to/your/vault" --enable   # copies main.js, manifest.json, styles.css
-ln -s "$PWD/packages/cli/dist/oprojects.cjs" ~/.local/bin/oprojects && chmod +x packages/cli/dist/oprojects.cjs
+ln -s "$PWD/packages/mcp/target/release/oprojects" ~/.local/bin/oprojects
 ```
 
 Use `--link` instead of copying while developing (`npm run dev` rebuilds; reload the plugin in Obsidian).
-The MCP server is built separately, see below.
 
 Without `init` it works with the defaults (`Cards` folder, `OP` key). The vault is found through `--vault`,
 `$OPROJECTS_VAULT`, or by walking up the folders until a `.obsidian` is found.
@@ -137,6 +145,9 @@ Settings: folder, project key, your name, members, hiding old done cards (14 day
 and columns (name, "done", WIP, order). Each column's `id` is stable: renaming one does not touch any card.
 
 ## CLI
+
+`oprojects` is a native program written in Rust, like the MCP server, and shares its code. It starts in a few milliseconds
+and needs nothing installed.
 
 ```
 oprojects add <title…> [-t type] [-p priority] [-s column] [-a assignee] [-l a,b] [--due date] [--estimate n] [--parent KEY] [--body text|-]
@@ -238,24 +249,27 @@ one and prints it once. The details are in [SECURITY.md](SECURITY.md) and
 
 The three read and write the same notes, so they must agree on every format. `packages/core` (TypeScript) is the
 reference implementation; `packages/mcp` is a port of it, proved against a corpus of about 9,000 cases generated from the
-TypeScript code (`npm run conformance`). CI fails if the corpus is stale, so a behavior change in the TypeScript core
-cannot land without the Rust server being made to match. Notes written by one are read back by the other in the tests.
+TypeScript code (`npm run conformance`), plus more than 2,300 command lines that the TypeScript CLI ran and that `oprojects`
+must answer with the same text, exit code and notes. CI fails if the corpus is stale, so a behavior change in the
+TypeScript code cannot land without the Rust programs being made to match. Notes written by one are read back by the other
+in the tests.
 
 ## Architecture
 
 ```
 packages/
   core/     card model, YAML, ranking, filters and CardService: no Obsidian, no DOM (the reference implementation)
-  cli/      oprojects: a thin layer over CardService (fs)
+  cli/      oprojects in TypeScript (deprecated as a program): the reference the Rust command line is tested against
   plugin/   Obsidian plugin; ui/ does not import 'obsidian' (testable in a browser)
-  mcp/      oprojects-mcp (Rust): the MCP server, a port of core proved against a conformance corpus
+  mcp/      Rust: oprojects-mcp (the MCP server) and oprojects (the command line), a port of core proved against a corpus
 ```
 
 The seam is the `Storage` interface (`packages/core/src/storage.ts`): `CardService` holds all the logic
 (keys, ranking, validation, `resolved`, filters) and only asks for “list/read/create/modify/remove a file”.
 There are two adapters in TypeScript, `FsStorage` (CLI) and `ObsidianStorage` (plugin, which uses `Vault.process`, atomic),
-plus `MemoryStorage` for tests. The Rust server has the same shape: a `Storage` trait, `FsStorage`, and the same
-`CardService`, with an in-memory index of the cards that file-system events keep current.
+plus `MemoryStorage` for tests. The Rust programs have the same shape: a `Storage` trait, `FsStorage`, and the same
+`CardService`; the server adds an in-memory index of the cards that file-system events keep current, and the command line
+(`packages/mcp/src/cli`) reads the vault afresh on every run.
 
 ## Performance
 
@@ -275,9 +289,11 @@ Measured (Chrome, 2,000 cards, 1,665 visible; the measurement floor is ~33 ms be
 | Clearing the search | ~40 ms |
 | Scrolling the largest column | 60 fps |
 
-CLI with 2,000 notes on disk: `show` 0.04 s · `ls/board/add/move` ~0.45 s (they read and parse the YAML of every note).
-If your vault grows past a few thousand cards, the next win is reading the frontmatter from Obsidian's `metadataCache`
-instead of re-parsing every note on startup.
+Command line with 2,000 notes on disk (`npm run check:cli-perf`, which fails CI above its budgets): starting and printing
+the version takes about 5 ms, `show` about 5 ms, `list` and `add` about 50 ms (they read and parse the YAML of every note).
+The Node version it replaced took 50 ms to start and about 450 ms for `list`. If your vault grows past a few thousand
+cards, the next win in the plugin is reading the frontmatter from Obsidian's `metadataCache` instead of re-parsing every
+note on startup.
 
 The MCP server is a long-lived process, so it keeps its own in-memory index (built in the background, so it is ready
 to answer at once, and kept current by file-system events) and reads a single card from its note, so a read is always
@@ -309,21 +325,21 @@ npm test               # unit tests (vitest): core, cli, the plugin's store/host
 npm run test:coverage  # the same, with coverage thresholds
 npm run test:ui        # browser: drags, filters, edits… on the real BoardUI (needs Chrome; CHROME=/path)
 npm run test:obsidian  # inside the real Obsidian, with a throwaway vault and profile (OBSIDIAN=/path)
-npm run test:smoke     # runs the built CLI as a real process against a throwaway vault
+npm run test:smoke     # runs the built Node CLI as a real process against a throwaway vault
 npm run dev            # rebuilds on change
 npm run version:check  # every version in the repo agrees (part of `check`)
 npm run seed           # fills ./dev-vault with 24 sample cards
 
-npm run check:mcp      # the Rust server: fmt, clippy, tests, release build, process tests, memory/latency budgets
+npm run check:mcp      # the Rust programs: fmt, clippy, tests, release build, process tests, memory/latency budgets
 npm run check:all      # `check` and `check:mcp`
 npm run conformance    # regenerate the corpus that the Rust server is tested against, from the TypeScript core
 ```
 
 - **Browser harness**: after `npm run build`, serve `packages/plugin` (`python3 -m http.server -d packages/plugin`)
   and open `/dev/harness.html?theme=dark&lang=en&width=520px`. It is the same `BoardUI` on top of an in-memory `CardService`.
-- **The Rust server** needs the toolchain pinned in `.tool-versions` (`asdf install` reads it; CI installs the same version
-  with `rustup`). Its tests include a corpus generated from `packages/core`: when you change behavior there, run
-  `npm run conformance`, commit the result, and make `cargo test` pass. `npm run conformance:check` (a CI gate) fails
+- **The Rust programs** need the toolchain pinned in `.tool-versions` (`asdf install` reads it; CI installs the same version
+  with `rustup`). Their tests include a corpus generated from `packages/core` and `packages/cli`: when you change behavior
+  there, run `npm run conformance`, commit the result, and make `cargo test` pass. `npm run conformance:check` (a CI gate) fails
   when the corpus is stale.
 - `test:obsidian` creates its own Obsidian profile (`--user-data-dir`) and talks to it over the DevTools Protocol in
   headless mode; it **does not open or change your Obsidian, your profile or your vaults**.

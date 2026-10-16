@@ -50,6 +50,70 @@ pub fn js_trim_end(s: &str) -> &str {
     s.trim_end_matches(is_js_whitespace)
 }
 
+/// `Number(text)`: what a JavaScript program makes of a string typed by a person. Surrounding whitespace is ignored and
+/// an empty string is 0; `0x`, `0o` and `0b` introduce a number in another base (without a sign); `Infinity` may carry a
+/// sign; anything else must be a decimal literal (`12`, `-1.5`, `.5`, `5.`, `1e3`). Everything that is none of these,
+/// `1_000` and `NaN` among them, is NaN, which the caller sees as not finite. Rust's own `f64::from_str` is more
+/// generous (it reads `inf` and `nan`), so the shape is checked first.
+pub fn js_to_number(text: &str) -> f64 {
+    let t = js_trim(text);
+    if t.is_empty() {
+        return 0.0;
+    }
+    match t {
+        "Infinity" | "+Infinity" => return f64::INFINITY,
+        "-Infinity" => return f64::NEG_INFINITY,
+        _ => {}
+    }
+    let bytes = t.as_bytes();
+    if bytes.len() > 2 && bytes[0] == b'0' {
+        let radix = match bytes[1] {
+            b'x' | b'X' => 16,
+            b'o' | b'O' => 8,
+            b'b' | b'B' => 2,
+            _ => 0,
+        };
+        if radix != 0 {
+            let mut value = 0.0_f64;
+            for c in t[2..].chars() {
+                match c.to_digit(radix) {
+                    Some(digit) => value = value * f64::from(radix) + f64::from(digit),
+                    None => return f64::NAN,
+                }
+            }
+            return value;
+        }
+    }
+    let digits = |from: usize| bytes[from..].iter().take_while(|b| b.is_ascii_digit()).count();
+    let mut at = usize::from(matches!(bytes[0], b'+' | b'-'));
+    let whole = digits(at);
+    at += whole;
+    let mut fraction = 0;
+    if bytes.get(at) == Some(&b'.') {
+        at += 1;
+        fraction = digits(at);
+        at += fraction;
+    }
+    if whole == 0 && fraction == 0 {
+        return f64::NAN;
+    }
+    if matches!(bytes.get(at), Some(b'e' | b'E')) {
+        at += 1;
+        if matches!(bytes.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
+        let exponent = digits(at);
+        if exponent == 0 {
+            return f64::NAN;
+        }
+        at += exponent;
+    }
+    if at != bytes.len() {
+        return f64::NAN;
+    }
+    t.parse().unwrap_or(f64::NAN)
+}
+
 /// `String(number)`: the shortest representation that reads back to the same value, in JavaScript's layout.
 pub fn number_to_js_string(x: f64) -> String {
     if x.is_nan() {
@@ -242,6 +306,42 @@ pub fn wall_clock(ms: i64, offset_minutes: i32) -> (i64, i64, i64, i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn js_to_number_reads_what_javascript_reads() {
+        for (text, want) in [
+            ("3", 3.0),
+            ("  3  ", 3.0),
+            ("\u{a0}7\u{feff}", 7.0),
+            ("", 0.0),
+            ("   ", 0.0),
+            ("-1.5", -1.5),
+            ("+5", 5.0),
+            (".5", 0.5),
+            ("5.", 5.0),
+            ("1e3", 1000.0),
+            ("1E+3", 1000.0),
+            ("2.5e-1", 0.25),
+            ("00012", 12.0),
+            ("0x10", 16.0),
+            ("0XfF", 255.0),
+            ("0o17", 15.0),
+            ("0b101", 5.0),
+            ("Infinity", f64::INFINITY),
+            ("-Infinity", f64::NEG_INFINITY),
+            ("1e999", f64::INFINITY),
+            ("-0", -0.0),
+        ] {
+            let got = js_to_number(text);
+            assert!(got == want && got.is_sign_negative() == want.is_sign_negative(), "{text:?}: {got} != {want}");
+        }
+        for text in [
+            "abc", "1_000", "NaN", "nan", "inf", "infinity", "+inf", "-0x10", "0x", "0xg", "0b2", "1e", "e5", ".", "+",
+            "-", "1.2.3", "1 2", "--1", "0x1.8", "1e1.5", "١٢٣", "5px",
+        ] {
+            assert!(js_to_number(text).is_nan(), "{text:?} should be NaN");
+        }
+    }
 
     #[test]
     fn js_cmp_orders_by_utf16_code_units() {

@@ -18,9 +18,9 @@ For anything security-sensitive, do not open a public issue: follow [SECURITY.md
 
 ## Getting set up
 
-You need Node ≥ 20 and, for the UI tests, Chrome or Chromium. The MCP server in `packages/mcp` is Rust: if you work
-on it, install the toolchain pinned in `.tool-versions` (`asdf install` reads it; with plain `rustup`, install that version).
-You do not need Rust to work on the plugin or the CLI.
+You need Node ≥ 20 and, for the UI tests, Chrome or Chromium. The MCP server and the native command line in `packages/mcp` are
+Rust: if you work on them, install the toolchain pinned in `.tool-versions` (`asdf install` reads it; with plain `rustup`,
+install that version). You do not need Rust to work on the plugin or the core.
 
 ```bash
 git clone https://github.com/GustavoEklund/obsidian-projects.git
@@ -46,14 +46,14 @@ Open `dev-vault` as a vault in Obsidian. For quicker UI work you can skip Obsidi
 
 ```
 packages/core     card model, YAML, ranking, filters and CardService: no Obsidian, no DOM
-packages/cli      oprojects: a thin layer over CardService
+packages/cli      oprojects in TypeScript: the reference the Rust command line is tested against (deprecated as a program)
 packages/plugin   the Obsidian plugin; ui/ never imports 'obsidian' so it runs in a plain browser
-packages/mcp      oprojects-mcp (Rust): the MCP server, a port of core proved against a conformance corpus
+packages/mcp      Rust: oprojects-mcp (the MCP server) and oprojects (the command line), ports of core and cli
 scripts/          build, demo data, installer, tests that drive a browser or the real Obsidian, release tooling
 ```
 
-The rule that keeps this manageable: **behavior goes in `core`**, behind the `Storage` interface. The CLI, the plugin
-and the future MCP server are thin shells over `CardService`, so a rule written there is the same everywhere.
+The rule that keeps this manageable: **behavior goes in `core`**, behind the `Storage` interface. The command line, the plugin
+and the MCP server are thin shells over `CardService`, so a rule written there is the same everywhere.
 Anything in `packages/plugin/src/ui/` talks to the app only through the `BoardHost` interface.
 
 ## Making a change
@@ -91,20 +91,22 @@ a final job, **All gates**, passes only when all of them do.
 | CLI smoke test | `npm run test:smoke` | The built `oprojects.cjs` works as a real process (shebang, bundled dependencies, stdin, exit codes). |
 | Browser UI | `npm run test:ui` | The board in a real Chrome: drag and drop, editing, the resizable panel, wide content staying inside it. |
 | Real Obsidian | `npm run test:obsidian` | The plugin inside Obsidian itself, in a throwaway profile (CI pins the Obsidian version). |
-| Conformance corpus | `npm run conformance:check` | The fixtures that the Rust server is tested against match what the TypeScript core produces today. |
-| Rust server | `npm run check:mcp` | `cargo fmt`, `clippy -D warnings` and the tests on Linux, macOS and Windows; then, on Linux, the release binary driven as a real process (the official MCP SDK client judges the protocol; notes written by Rust are read back by the TypeScript core and the other way round). |
-| Server budgets | `npm run check:mcp-perf` | Memory and latency of the release binary on a 2,000-card vault: about 5 MB idle and 11 MB indexed, reads in about a millisecond. Fails on a regression of an order of magnitude. |
-| MCP binaries | the `MCP binaries` workflow | The server builds for the six release platforms (Linux x64/arm64 static, macOS Intel/Apple Silicon, Windows x64/arm64). |
+| Conformance corpus | `npm run conformance:check` | The fixtures that the Rust programs are tested against match what the TypeScript core and CLI produce today. |
+| Rust programs | `npm run check:mcp` | `cargo fmt`, `clippy -D warnings` and the tests on Linux, macOS and Windows (the command line replays 2,300 invocations of the TypeScript one and runs as a real process); then, on Linux, the MCP binary driven as a real process (the official MCP SDK client judges the protocol; notes written by Rust are read back by the TypeScript core and the other way round). |
+| Server budgets | `npm run check:mcp-perf` | Memory and latency of the MCP release binary on a 2,000-card vault: about 5 MB idle and 11 MB indexed, reads in about a millisecond. Fails on a regression of an order of magnitude. |
+| Command line budgets | `npm run check:cli-perf` | Start-up, `list`, `show` and `add` of the `oprojects` release binary on a 2,000-card vault, and its size (about 1 MB). Fails on a regression of an order of magnitude. |
+| Rust binaries | the `MCP binaries` workflow | The server and the command line build for the six release platforms (Linux x64/arm64 static, macOS Intel/Apple Silicon, Windows x64/arm64). |
 | Dependency audit | `npm run audit:deps` | Known vulnerabilities in what ships. Advisories in development tools are reported without blocking. |
 
 When the repository is public, make **All gates** a required status check for `main`.
 
 ### Changing the card logic
 
-`packages/core` is the reference implementation, and `packages/mcp` is a port of it. If you change how notes are read,
-written, ordered, filtered or validated, run `npm run conformance` (it regenerates `packages/mcp/tests/fixtures` from the
-TypeScript code), commit the result, and make `cargo test` pass: the failing cases tell you what the Rust side has to do.
-CI runs `npm run conformance:check` and fails on a stale corpus.
+`packages/core` is the reference implementation, and `packages/mcp` is a port of it; `packages/cli` is the reference for
+what the command line prints. If you change how notes are read, written, ordered, filtered or validated, or what a command
+reads from its arguments or writes to the terminal, run `npm run conformance` (it regenerates `packages/mcp/tests/fixtures`
+from the TypeScript code), commit the result, and make `cargo test` pass: the failing cases tell you what the Rust side
+has to do. CI runs `npm run conformance:check` and fails on a stale corpus.
 
 ### Language
 

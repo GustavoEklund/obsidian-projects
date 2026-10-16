@@ -36,6 +36,13 @@ const io: IO = {
   openUrl,
 };
 
+// The native `oprojects` replaces this program; people at a terminal are told once per run, scripts (no terminal) are not.
+if (process.stderr.isTTY) {
+  process.stderr.write(
+    'note: this Node version of oprojects is deprecated; install the native one: https://github.com/GustavoEklund/obsidian-projects/releases/latest\n',
+  );
+}
+
 run(process.argv.slice(2), io).then(
   (code) => {
     process.exitCode = code;

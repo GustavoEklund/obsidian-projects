@@ -8,6 +8,27 @@ are cut, is described in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **The command line is a native program now.** `oprojects` is written in Rust, like the MCP server, and shares its code:
+  no Node to install, a start of about 5 ms instead of 50, and a file of 1 MB. The commands, the options, the output
+  and the exit codes are the ones of the Node version, which it is tested against on more than 2,300 command lines.
+  Binaries for Linux (x64, arm64), macOS (Intel, Apple Silicon) and Windows (x64, arm64) are attached to each release,
+  next to the ones of the MCP server.
+
+### Deprecated
+
+- `oprojects.cjs`, the Node version of the command line, is still attached to this release and still works, but it will
+  not be attached to the next one: install the native `oprojects` instead (see the README).
+
+### Fixed
+
+- `oprojects add --due +99999999d` (a relative date of more than seven digits) complained about the date
+  `"NaN-NaN-NaN"`; it now says that `+99999999d` is not a date.
+- `oprojects move OP-1 todo --before OP-4`, when `OP-4` is in another column, is reported like any other mistake in the
+  request: as `{"error": …}` with `--json`.
+- `oprojects list --mine` sent people to "Settings → Cards" for their name; the setting is under "Projects".
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

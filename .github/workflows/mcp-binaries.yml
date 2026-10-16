@@ -1,8 +1,9 @@
 name: MCP binaries
 
-# Builds the oprojects-mcp binary for every supported platform. The CI runs it on every push (a target that stops
-# building must be noticed at once, not on release day) and the release workflow publishes what it builds.
-# Linux binaries are static (musl), so they run on any distribution regardless of its glibc.
+# Builds the Rust programs, `oprojects-mcp` (the MCP server) and `oprojects` (the command line), for every supported
+# platform. The CI runs it on every push (a target that stops building must be noticed at once, not on release day) and
+# the release workflow publishes what it builds. Linux binaries are static (musl), so they run on any distribution
+# regardless of its glibc.
 on:
   workflow_call:
   workflow_dispatch:
@@ -54,16 +55,19 @@ jobs:
         working-directory: packages/mcp
         run: cargo build --release --locked --target "${{ matrix.target }}"
 
-      - name: The binary runs, and reports the version of the repository
+      - name: The binaries run, and report the version of the repository
         run: |
           suffix=""
           if [[ "${{ matrix.target }}" == *windows* ]]; then suffix=".exe"; fi
-          bin="packages/mcp/target/${{ matrix.target }}/release/oprojects-mcp$suffix"
-          echo "BIN=$bin" >> "$GITHUB_ENV"
-          echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' packages/mcp/Cargo.toml | head -1)" >> "$GITHUB_ENV"
-          "$bin" --version
+          dir="packages/mcp/target/${{ matrix.target }}/release"
+          echo "MCP_BIN=$dir/oprojects-mcp$suffix" >> "$GITHUB_ENV"
+          echo "CLI_BIN=$dir/oprojects$suffix" >> "$GITHUB_ENV"
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' packages/mcp/Cargo.toml | head -1)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          "$dir/oprojects-mcp$suffix" --version
+          test "$("$dir/oprojects$suffix" --version | tr -d '\r')" = "$version"
 
-      # Memory and latency budgets on the exact binary users get (musl's allocator included).
+      # Memory and latency budgets on the exact binaries users get (musl's allocator included).
       - uses: actions/setup-node@v7
         if: matrix.perf
         with:
@@ -73,21 +77,27 @@ jobs:
         if: matrix.perf
         run: |
           npm ci
-          npm run check:mcp-perf -- --bin "$BIN"
+          npm run check:mcp-perf -- --bin "$MCP_BIN"
+          npm run check:cli-perf -- --bin "$CLI_BIN"
 
       - name: Package
         run: |
-          name="oprojects-mcp-${VERSION}-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          cp "$BIN" LICENSE "dist/$name/"
-          cd dist
-          if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            7z a -tzip "$name.zip" "$name" > /dev/null
-          else
-            tar -czf "$name.tar.gz" "$name"
-          fi
-          rm -r "$name"
-          ls -l
+          mkdir -p dist
+          package() { # <program name> <binary>
+            name="$1-${VERSION}-${{ matrix.target }}"
+            mkdir -p "dist/$name"
+            cp "$2" LICENSE "dist/$name/"
+            (cd dist
+              if [[ "${{ matrix.archive }}" == "zip" ]]; then
+                7z a -tzip "$name.zip" "$name" > /dev/null
+              else
+                tar -czf "$name.tar.gz" "$name"
+              fi
+              rm -r "$name")
+          }
+          package oprojects-mcp "$MCP_BIN"
+          package oprojects "$CLI_BIN"
+          ls -l dist
 
       - uses: actions/upload-artifact@v7
         with:

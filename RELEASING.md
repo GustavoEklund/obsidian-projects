@@ -71,7 +71,8 @@ Each release carries:
 | --- | --- |
 | `main.js`, `manifest.json`, `styles.css` | the plugin, the three files Obsidian and [BRAT](https://github.com/TfTHacker/obsidian42-brat) install |
 | `obsidian-projects-x.y.z.zip` | the same three files in an `obsidian-projects/` folder, to unzip into `.obsidian/plugins/` |
-| `oprojects.cjs` | the CLI, a single executable file (needs Node ≥ 20) |
+| `oprojects-x.y.z-<platform>.tar.gz` / `.zip` | the command line, one archive per platform (the same six as the MCP server) |
+| `oprojects.cjs` | the Node command line, a single executable file (needs Node ≥ 20). Deprecated: the first release with the native one is the last to attach it |
 | `oprojects-mcp-x.y.z-<platform>.tar.gz` / `.zip` | the MCP server, one archive per platform: Linux x64 and arm64 (static), macOS Intel and Apple Silicon, Windows x64 and arm64 |
 | `SHA256SUMS.txt` | checksums of the files above |
 

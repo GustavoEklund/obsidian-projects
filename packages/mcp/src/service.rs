@@ -150,7 +150,8 @@ fn clean_text(text: &str) -> Result<String> {
     Ok(t)
 }
 
-fn clean_title(title: &str) -> Result<String> {
+/// A title with its whitespace collapsed; it cannot be empty or too long.
+pub fn clean_title(title: &str) -> Result<String> {
     let mut collapsed = String::with_capacity(title.len());
     let mut in_space = false;
     for c in title.chars() {

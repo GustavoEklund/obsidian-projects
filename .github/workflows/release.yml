@@ -1,8 +1,8 @@
 name: Release
 
-# Pushing a SemVer tag (0.2.0, or 0.3.0-beta.1 for a pre-release) builds the plugin and the CLI and publishes a
-# GitHub release. The tag must equal the version in manifest.json, with no "v" prefix: that is what Obsidian and BRAT
-# expect. See RELEASING.md.
+# Pushing a SemVer tag (0.2.0, or 0.3.0-beta.1 for a pre-release) builds the plugin, the command line and the MCP
+# server and publishes a GitHub release. The tag must equal the version in manifest.json, with no "v" prefix: that is
+# what Obsidian and BRAT expect. See RELEASING.md.
 on:
   push:
     tags:
@@ -51,7 +51,7 @@ jobs:
           cp packages/cli/dist/oprojects.cjs release/
           cp mcp-binaries/* release/
           (cd release && zip -qr "obsidian-projects-${GITHUB_REF_NAME}.zip" obsidian-projects && rm -r obsidian-projects)
-          (cd release && sha256sum main.js manifest.json styles.css oprojects.cjs "obsidian-projects-${GITHUB_REF_NAME}.zip" oprojects-mcp-* > SHA256SUMS.txt)
+          (cd release && sha256sum main.js manifest.json styles.css oprojects.cjs "obsidian-projects-${GITHUB_REF_NAME}.zip" oprojects-* > SHA256SUMS.txt)
           npx tsx scripts/release.ts notes "$GITHUB_REF_NAME" > notes.md
 
       - name: Publish the release

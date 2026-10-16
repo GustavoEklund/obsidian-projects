@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "oprojects-mcp"
 path = "src/main.rs"
 
+[[bin]]
+name = "oprojects"
+path = "src/bin/oprojects.rs"
+
 [dependencies]
 anyhow = "1"
 bytes = "1.12.1"
@@ -27,6 +31,7 @@ rmcp = { version = "3.5", features = ["server", "transport-io", "transport-strea
 saphyr-parser = "0.2.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+terminal_size = "0.4.4"
 thiserror = "2"
 time = { version = "0.3.55", default-features = false, features = ["local-offset"] }
 tokio = { version = "1", features = ["rt", "macros", "io-std", "net", "time", "sync", "signal", "io-util"] }
@@ -52,3 +57,6 @@ proptest = "1.12.0"
 rmcp = { version = "3.5", features = ["client", "server", "macros", "transport-io"] }
 tempfile = "3.27.0"
 tokio = { version = "1", features = ["rt", "macros", "io-util", "time", "sync"] }
+
+[target."cfg(windows)".dependencies]
+anstyle-query = "1.1.5"
