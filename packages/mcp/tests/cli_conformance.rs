@@ -147,7 +147,7 @@ fn invoke(inv: &Value, root: &str, outside: &str, ids: &[String], next_id: &Arc<
             text = text.replace(&path.replace('\\', "\\\\"), placeholder).replace(path, placeholder);
             text = forward_slashes_after(&text, placeholder);
         }
-        text
+        text.replace(env!("CARGO_PKG_VERSION"), "<version>")
     };
     Outcome {
         code,

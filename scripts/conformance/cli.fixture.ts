@@ -6,7 +6,7 @@
 //
 // Rules the generator follows so both sides can be compared:
 // - The vault's path is a placeholder, `<vault>`, in the arguments and the environment going in, and in the text coming
-//   out. `<outside>` is a folder that has no vault above it.
+//   out. `<outside>` is a folder that has no vault above it, and `<version>` is the version of the program.
 // - The messages Node's `parseArgs` writes for unknown options and for an option that is missing its value differ
 //   between Node versions, so only their first line is recorded (`normalizeError`); the Rust side applies the same cut.
 // - Notes are compared byte for byte only in scenarios whose text is "ordinary" (plain words, where both YAML writers
@@ -15,7 +15,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { CardService, MemoryStorage, normalizeConfig, parseCard, type BoardConfig, type Card } from '@oprojects/core';
-import { run, type IO } from '../../packages/cli/src/run';
+import { VERSION, run, type IO } from '../../packages/cli/src/run';
 import { chance, int, pick, rng, text, type Case, type FixtureFile, type Random } from './lib';
 
 // Dates and times come out in local time: the corpus is produced in UTC and Rust is given an offset of 0.
@@ -92,7 +92,9 @@ async function execute(scenario: Scenario, exactText: boolean): Promise<Case['ex
       await writeFile(path.join(root, rel), content);
     }
     const into = (t: string) => t.split('<vault>').join(root).split('<outside>').join(outside);
-    const outOf = (t: string) => t.split(root).join('<vault>').split(outside).join('<outside>');
+    // The version is a placeholder too, so that a release does not make the corpus stale.
+    const outOf = (t: string) =>
+      t.split(root).join('<vault>').split(outside).join('<outside>').split(VERSION).join('<version>');
 
     let nextId = 0;
     const results: Result[] = [];
