@@ -510,3 +510,38 @@ fn whatever_the_board_fails_with_is_the_message_the_model_gets() {
         "File already exists: Cards/OP-5.md"
     );
 }
+
+// --- `me` as an assignee --------------------------------------------------------------------------------------------
+
+#[test]
+fn me_as_an_assignee_is_the_board_user_when_creating_and_when_updating() {
+    // Found by using the installed server: `assignee: "me"` was stored as the word "me" while the same word in a filter
+    // meant the user, and the server instructions promise that "me" means the user.
+    let board = FakeBoard::sample();
+    for spelling in ["me", "ME", " Me "] {
+        ops::create_card(board.as_ref(), args(json!({ "title": "x", "assignee": spelling }))).unwrap();
+        let input = board.last_new_card.lock().unwrap().clone().unwrap();
+        assert_eq!(input.assignee.as_deref(), Some("Ana"), "{spelling:?} when creating");
+        ops::update_card(board.as_ref(), args(json!({ "key": "OP-1", "assignee": spelling }))).unwrap();
+        assert_eq!(patch_of(&board).assignee, Some(Some("Ana".into())), "{spelling:?} when updating");
+    }
+}
+
+#[test]
+fn a_name_that_merely_contains_me_is_left_alone_and_null_still_clears() {
+    let board = FakeBoard::sample();
+    for name in ["Mel", "Meme", "me too", "Someone"] {
+        ops::update_card(board.as_ref(), args(json!({ "key": "OP-1", "assignee": name }))).unwrap();
+        assert_eq!(patch_of(&board).assignee, Some(Some(name.to_string())), "{name}");
+    }
+    ops::update_card(board.as_ref(), args(json!({ "key": "OP-1", "assignee": null }))).unwrap();
+    assert_eq!(patch_of(&board).assignee, Some(None));
+}
+
+#[test]
+fn without_a_configured_user_me_stays_as_written_like_in_the_cli() {
+    let config = oprojects_mcp::types::BoardConfig { me: String::new(), ..common::fake_board::config() };
+    let board = FakeBoard::with_config(vec![card(1, "todo", "One")], config);
+    ops::create_card(board.as_ref(), args(json!({ "title": "x", "assignee": "me" }))).unwrap();
+    assert_eq!(board.last_new_card.lock().unwrap().clone().unwrap().assignee.as_deref(), Some("me"));
+}

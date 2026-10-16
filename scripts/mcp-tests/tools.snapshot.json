@@ -59,6 +59,7 @@
           "enum": ["highest", "high", "medium", "low", "lowest"]
         },
         "assignee": {
+          "description": "A name, or `me` for the board's user.",
           "type": "string"
         },
         "labels": {
@@ -290,7 +291,7 @@
           "enum": ["highest", "high", "medium", "low", "lowest"]
         },
         "assignee": {
-          "description": "null removes the assignee.",
+          "description": "A name, or `me` for the board's user; null removes the assignee.",
           "type": ["string", "null"]
         },
         "labels": {

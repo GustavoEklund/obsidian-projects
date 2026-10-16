@@ -61,8 +61,13 @@ pub fn card(n: u32, status: &str, title: &str) -> Card {
 
 impl FakeBoard {
     pub fn new(cards: Vec<Card>) -> Arc<Self> {
+        Self::with_config(cards, config())
+    }
+
+    /// Like `new`, for a board whose configuration is not the default one (for example nobody configured as `me`).
+    pub fn with_config(cards: Vec<Card>, config: BoardConfig) -> Arc<Self> {
         Arc::new(Self {
-            config: config(),
+            config,
             today: Mutex::new("2026-10-14".into()),
             cards: Mutex::new(cards),
             calls: Mutex::new(vec![]),

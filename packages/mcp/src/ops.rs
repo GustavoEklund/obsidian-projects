@@ -132,6 +132,7 @@ pub struct CreateCard {
     #[serde(rename = "type")]
     pub card_type: Option<TypeArg>,
     pub priority: Option<PriorityArg>,
+    /// A name, or `me` for the board's user.
     pub assignee: Option<String>,
     pub labels: Option<Vec<String>>,
     /// `YYYY-MM-DD`, `today`, `tomorrow`, `+3d` or `+2w`.
@@ -151,7 +152,7 @@ pub struct UpdateCard {
     #[serde(rename = "type")]
     pub card_type: Option<TypeArg>,
     pub priority: Option<PriorityArg>,
-    /// null removes the assignee.
+    /// A name, or `me` for the board's user; null removes the assignee.
     #[serde(default, deserialize_with = "clearable")]
     #[schemars(with = "Option<String>")]
     pub assignee: Option<Option<String>>,
@@ -236,6 +237,15 @@ fn none_if_blank(value: Option<String>) -> Option<String> {
     value.filter(|v| !v.trim().is_empty())
 }
 
+/// `me` stands for the board's user, as it does in the filters and as `-a me` does in the CLI: the card must carry the
+/// person's name, not the word. Without a configured user the text is kept as it was written.
+fn resolve_me(board: &dyn Board, assignee: Option<String>) -> Option<String> {
+    assignee.map(|name| {
+        let me = &board.config().me;
+        if !me.is_empty() && name.trim().eq_ignore_ascii_case("me") { me.clone() } else { name }
+    })
+}
+
 pub fn list_cards(board: &dyn Board, args: ListCards) -> Result<String> {
     let limit = args.limit.map_or(DEFAULT_LIMIT, |l| l as usize).clamp(1, MAX_LIMIT);
     let query = CardQuery {
@@ -265,7 +275,7 @@ pub fn create_card(board: &dyn Board, args: CreateCard) -> Result<String> {
         status: none_if_blank(args.status),
         card_type: args.card_type.map(Into::into),
         priority: args.priority.map(Into::into),
-        assignee: none_if_blank(args.assignee),
+        assignee: resolve_me(board, none_if_blank(args.assignee)),
         labels: args.labels,
         due,
         estimate: args.estimate,
@@ -287,7 +297,7 @@ pub fn update_card(board: &dyn Board, args: UpdateCard) -> Result<String> {
         status: None,
         card_type: args.card_type.map(Into::into),
         priority: args.priority.map(Into::into),
-        assignee: args.assignee,
+        assignee: args.assignee.map(|inner| resolve_me(board, inner)),
         labels: args.labels,
         due,
         estimate: args.estimate,

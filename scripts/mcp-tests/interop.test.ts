@@ -75,6 +75,24 @@ describe('Rust writes, TypeScript reads', () => {
     });
   });
 
+  it('`me` as an assignee is stored as the name of the board user, so the same word in a filter finds it', async () => {
+    // Found by using the installed server: it stored the word "me", while the instructions say "me" is the user.
+    await withServer({ cards: 12 }, async ({ server, vault }) => {
+      const created = text(await call(server, 'create_card', { title: 'Mine', assignee: 'me' }));
+      const key = /OP-\d+/.exec(created)![0];
+      expect((await (await reference(vault.root)).get(key)).assignee).toBe(vault.config.me);
+
+      await call(server, 'update_card', { key: 'OP-2', assignee: 'Bruno' });
+      await call(server, 'update_card', { key: 'OP-2', assignee: 'ME' });
+      expect((await (await reference(vault.root)).get('OP-2')).assignee).toBe(vault.config.me);
+
+      const mine = text(await call(server, 'list_cards', { assignee: ['me'], limit: 200 }));
+      expect(mine).toContain(key);
+      expect(mine).toContain('OP-2 [');
+      expect(mine).not.toContain('@me ');
+    });
+  });
+
   it('an update changes only what it names and keeps what a person added to the note by hand', async () => {
     await withServer({ cards: 12 }, async ({ server, vault }) => {
       const file = path.join(vault.root, 'Cards/OP-3.md');
