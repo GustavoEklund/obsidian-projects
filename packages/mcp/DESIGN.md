@@ -44,6 +44,14 @@ CPU), and `stat`-ing every file per call is too slow as well. So the server keep
 - Strings are copied out of the note text, so a card never keeps its whole note alive.
 - `get_card` and every write read the file itself: single-card operations are always fresh, whatever the index says.
 
+### Platform notes
+
+- macOS reports a deleted or renamed folder as one event, with none for the notes inside it, so a folder-level event
+  triggers a rescan (hidden temporary files, which every atomic write makes, do not).
+- On Windows the watch of a cards folder that was deleted and made again sometimes misses the notes written next. The
+  server looks at the folder once a second, rebuilds its watcher when the folder goes away, and the periodic
+  reconciliation (every 60 seconds) heals whatever is still missed.
+
 ## Writing
 
 Writes are atomic (temp file and rename), queued per file so two writes to one note never interleave, and refuse to
