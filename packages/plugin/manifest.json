@@ -1,7 +1,7 @@
 {
   "id": "obsidian-projects",
   "name": "Projects",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.8.0",
   "description": "A.I. first project management in real time. A Jira-style card board for your notes, with a companion CLI. Every card is a Markdown note.",
   "author": "Gustavo Eklund",

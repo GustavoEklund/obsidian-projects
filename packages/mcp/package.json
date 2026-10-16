@@ -1,6 +1,6 @@
 {
   "name": "@oprojects/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "Unlicense",
   "description": "MCP server for Obsidian Projects (Rust). This package.json only wires the crate into the npm workspace and the single version scheme.",

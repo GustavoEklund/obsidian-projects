@@ -1,6 +1,6 @@
 {
   "name": "obsidian-projects",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "Unlicense",
   "description": "A.I. first project management in real time: Jira-style cards for Obsidian, with a CLI and an MCP-ready core",

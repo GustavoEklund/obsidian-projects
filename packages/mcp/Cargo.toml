@@ -1,6 +1,6 @@
 [package]
 name = "oprojects-mcp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "MCP server for Obsidian Projects: a small, fast, local server over the vault's card notes"
 license = "Unlicense"
