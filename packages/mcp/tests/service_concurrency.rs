@@ -220,6 +220,63 @@ fn two_services_over_one_vault_never_hand_out_the_same_key() {
     assert_eq!(unique.len(), 60, "{keys:?}");
 }
 
+/// A storage behind whose back other writers have taken the next numbers: on the first `create`, the notes `OP-1` to
+/// `OP-<taken>` appear on disk (as if the plugin and the CLI had been creating cards at that very moment).
+struct OthersGotThereFirst {
+    inner: FsStorage,
+    taken: usize,
+    done: std::sync::atomic::AtomicBool,
+}
+
+impl Storage for OthersGotThereFirst {
+    fn list_markdown(&self, folder: &str) -> oprojects_mcp::error::Result<Vec<String>> {
+        self.inner.list_markdown(folder)
+    }
+    fn read(&self, path: &str) -> oprojects_mcp::error::Result<String> {
+        self.inner.read(path)
+    }
+    fn create(&self, path: &str, content: &str) -> oprojects_mcp::error::Result<()> {
+        if !self.done.swap(true, Ordering::SeqCst) {
+            for n in 1..=self.taken {
+                let _ = self
+                    .inner
+                    .create(&format!("Cards/OP-{n}.md"), &format!("---\nkey: OP-{n}\ntitle: Taken {n}\n---\n"));
+            }
+        }
+        self.inner.create(path, content)
+    }
+    fn modify(
+        &self,
+        path: &str,
+        f: &mut dyn FnMut(&str) -> oprojects_mcp::error::Result<String>,
+    ) -> oprojects_mcp::error::Result<String> {
+        self.inner.modify(path, f)
+    }
+    fn remove(&self, path: &str) -> oprojects_mcp::error::Result<()> {
+        self.inner.remove(path)
+    }
+    fn exists(&self, path: &str) -> bool {
+        self.inner.exists(path)
+    }
+}
+
+#[test]
+fn after_a_collision_the_service_skips_every_number_the_others_took_instead_of_walking_up_one_by_one() {
+    // Found on Windows, where two writers run in step: walking up one number at a time (as the TypeScript does) collides
+    // again and again and gives up after eight tries. Looking at what is on disk after a collision does not.
+    let dir = temp_vault();
+    let storage = OthersGotThereFirst {
+        inner: FsStorage::new(dir.path()),
+        taken: 21,
+        done: std::sync::atomic::AtomicBool::new(false),
+    };
+    let service = CardService::new(Arc::new(storage), board(), counting_ids());
+    let card = service.create(titled("late")).unwrap();
+    assert_eq!(card.key, "OP-22");
+    // And the next one carries on from there as usual.
+    assert_eq!(service.create(titled("later")).unwrap().key, "OP-23");
+}
+
 // --- processes --------------------------------------------------------------------------------------------------------
 //
 // These re-run this very test binary as child processes (`child_entry` does nothing unless the environment asks), so the

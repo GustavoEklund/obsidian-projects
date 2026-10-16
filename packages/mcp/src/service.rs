@@ -37,10 +37,21 @@ use serde_json::{Number, Value};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// How many consecutive keys `create` tries before giving up (the TypeScript's `MAX_KEY_ATTEMPTS`).
 const MAX_KEY_ATTEMPTS: usize = 8;
+
+/// How long to wait after losing a race for a key: a random time, up to half a millisecond at the first collision and
+/// doubling up to eight times that. Random so that two writers that collided do not wake up together and collide again.
+fn collision_pause(attempt: usize) -> Duration {
+    use std::hash::{BuildHasher, Hasher};
+    // `RandomState` is seeded randomly for every instance, which is all the randomness this needs.
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u128(SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos()));
+    let ceiling_micros = 500_u64 << attempt.min(4);
+    Duration::from_micros(hasher.finish() % ceiling_micros)
+}
 
 /// Below this many notes a scan reads them on the calling thread: starting threads would cost more than it saves.
 const PARALLEL_SCAN_FROM: usize = 64;
@@ -332,7 +343,7 @@ impl<S: Storage> CardService<S> {
         let mut n = cards.iter().filter_map(|c| key_number(&c.key, &self.config.prefix)).fold(0.0_f64, f64::max) + 1.0;
         let body = input.body.clone().unwrap_or_default();
 
-        for _ in 0..MAX_KEY_ATTEMPTS {
+        for attempt in 0..MAX_KEY_ATTEMPTS {
             let key = format!("{}-{}", self.config.prefix, number_to_js_string(n));
             let path = format!("{}/{key}.md", self.config.folder);
             let card = Card {
@@ -362,12 +373,24 @@ impl<S: Storage> CardService<S> {
                     return parse_card(&path, &content)
                         .ok_or_else(|| Error::Format(format!("the note just written for {} is not a card", card.key)));
                 }
-                // someone (the plugin, the CLI, another server) took this number first
-                Err(Error::FileExists(_)) => n += 1.0,
+                // Someone (the plugin, the CLI, another server) took this number first. Look at what is on disk now
+                // instead of only trying the next number: two writers that run in step would otherwise collide again
+                // and again (found on Windows). The short random pause pulls them out of step.
+                Err(Error::FileExists(_)) => {
+                    n = f64::max(n + 1.0, self.highest_key_on_disk()? + 1.0);
+                    std::thread::sleep(collision_pause(attempt));
+                }
                 Err(e) => return Err(e),
             }
         }
         Err(Error::Format(format!("Could not allocate a free key after {MAX_KEY_ATTEMPTS} attempts")))
+    }
+
+    /// The highest number among the note names in the cards folder (file names only, nothing is read).
+    fn highest_key_on_disk(&self) -> Result<f64> {
+        let paths = self.storage.list_markdown(&self.config.folder)?;
+        let stems = paths.iter().filter_map(|p| p.rsplit('/').next()).filter_map(|name| name.strip_suffix(".md"));
+        Ok(stems.filter_map(|stem| key_number(stem, &self.config.prefix)).fold(0.0_f64, f64::max))
     }
 
     /// Rewrites the description and comments of a card atomically, against the freshest content, touching nothing
