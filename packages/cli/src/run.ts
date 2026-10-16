@@ -41,6 +41,8 @@ export interface IO {
   columns: number;
   now: () => Date;
   openUrl: (url: string) => Promise<void>;
+  /** Comment ids; the service picks random ones when this is absent (tests pass a counter). */
+  newId?: () => string;
 }
 
 export const VERSION: string = pkg.version;
@@ -128,12 +130,16 @@ export function parseDue(input: string, now: Date): string {
     day.setDate(day.getDate() + 1);
     return localDate(day);
   }
+  const invalid = () => new ValidationError(`Invalid date "${input}" (use YYYY-MM-DD, today, tomorrow, +3d, +2w)`);
   const rel = /^\+(\d+)([dw])$/.exec(v);
   if (rel) {
+    // Seven digits is 9,999,999 days. More than that is not a date anybody means, and for the larger ones JavaScript
+    // would hand back an invalid Date that prints as "NaN-NaN-NaN".
+    if (rel[1]!.length > 7) throw invalid();
     day.setDate(day.getDate() + Number(rel[1]) * (rel[2] === 'w' ? 7 : 1));
     return localDate(day);
   }
-  if (!isValidDate(v)) throw new ValidationError(`Invalid date "${input}" (use YYYY-MM-DD, today, tomorrow, +3d, +2w)`);
+  if (!isValidDate(v)) throw invalid();
   return v;
 }
 
@@ -160,7 +166,7 @@ function queryFromArgs(ctx: Ctx, { values }: Args): CardQuery {
   if (flag(values.mine)) {
     if (!ctx.config.me)
       throw new UsageError(
-        '--mine needs "me" in the board settings (Obsidian: Settings → Cards → My name, or `me` in data.json)',
+        '--mine needs "me" in the board settings (Obsidian: Settings → Projects → My name, or `me` in data.json)',
       );
     assignee.push('me');
   }
@@ -581,7 +587,7 @@ export async function run(rawArgv: string[], io: IO): Promise<number> {
 
     const root = await findVaultRoot(io.cwd, str(args.values.vault) ?? io.env.OPROJECTS_VAULT);
     const config = await loadBoardConfig(root);
-    const svc = new CardService(new FsStorage(root), config, { now: io.now });
+    const svc = new CardService(new FsStorage(root), config, { now: io.now, newId: io.newId });
     await cmd.run({ io, root, config, svc, paint: makePainter(color && !json), json, now: io.now() }, args);
     return 0;
   } catch (e) {

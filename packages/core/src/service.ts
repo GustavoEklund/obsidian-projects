@@ -10,6 +10,7 @@ import {
   parseCard,
 } from './card';
 import { displayColumn, isDoneStatus, resolveColumn, type BoardConfig } from './config';
+import { ValidationError } from './errors';
 import { patchFrontmatter, splitFrontmatter, type FrontmatterPatch } from './frontmatter';
 import { UNASSIGNED, filterCards, isArchivedDone, rankForPlacement, sortCards, type CardFilter } from './query';
 import { FileExistsError, NotFoundError, type Storage } from './storage';
@@ -25,7 +26,7 @@ import {
   type Priority,
 } from './types';
 
-export class ValidationError extends Error {}
+export { ValidationError };
 
 export interface ServiceOptions {
   /** Injectable clock (tests). */

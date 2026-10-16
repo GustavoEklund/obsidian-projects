@@ -282,6 +282,10 @@ describe('parseDue', () => {
     expect(parseDue('+2w', NOW)).toBe('2026-10-28');
     expect(parseDue('2026-12-24', NOW)).toBe('2026-12-24');
     expect(() => parseDue('someday', NOW)).toThrow('Invalid date "someday"');
+    // a relative date has at most seven digits: more is not a date anybody means (and used to read "NaN-NaN-NaN")
+    expect(parseDue('+9999999d', NOW)).toMatch(/^\d{5}-\d\d-\d\d$/);
+    expect(() => parseDue('+10000000d', NOW)).toThrow('Invalid date "+10000000d"');
+    expect(() => parseDue('+99999999w', NOW)).toThrow('Invalid date "+99999999w"');
   });
 });
 

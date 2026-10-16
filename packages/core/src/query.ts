@@ -1,4 +1,5 @@
 import { displayColumn, isDoneStatus, type BoardConfig, type Column } from './config';
+import { ValidationError } from './errors';
 import { rankBetween } from './rank';
 import { PRIORITIES, type Card, type CardType, type Placement, type Priority } from './types';
 
@@ -152,12 +153,12 @@ export function rankForPlacement(
   let next: Card | undefined;
   if (placement.before) {
     const i = column.findIndex((c) => c.key === placement.before);
-    if (i < 0) throw new Error(`Card ${placement.before} is not in column "${columnId}"`);
+    if (i < 0) throw new ValidationError(`Card ${placement.before} is not in column "${columnId}"`);
     prev = column[i - 1];
     next = column[i];
   } else if (placement.after) {
     const i = column.findIndex((c) => c.key === placement.after);
-    if (i < 0) throw new Error(`Card ${placement.after} is not in column "${columnId}"`);
+    if (i < 0) throw new ValidationError(`Card ${placement.after} is not in column "${columnId}"`);
     prev = column[i];
     next = column[i + 1];
   } else {

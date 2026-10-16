@@ -134,14 +134,14 @@ fn step(service: &CardService<Arc<MemoryStorage>>, op: &str, args: &Value) -> Re
     }
 }
 
-/// How the TypeScript names what it threw. A plain `Error` there is "other"; here a bad placement reference is a
-/// validation error, which is what it is, so "other" accepts both.
+/// How the TypeScript names what it threw: a mistake of the caller is "validation", a missing card or comment is
+/// "not_found", a path taken by someone else is "file_exists", and a plain `Error` is "other".
 fn kind_matches(expected: &str, error: &Error) -> bool {
     match (expected, error) {
         ("validation", Error::Validation(_))
         | ("not_found", Error::NotFound(_))
         | ("file_exists", Error::FileExists(_)) => true,
-        ("other", Error::NotFound(_) | Error::FileExists(_)) => false,
+        ("other", Error::Validation(_) | Error::NotFound(_) | Error::FileExists(_)) => false,
         ("other", _) => true,
         _ => false,
     }

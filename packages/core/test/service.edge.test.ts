@@ -691,6 +691,9 @@ describe('move', () => {
     await svc.move('OP-4', 'doing');
     await expect(svc.move('OP-1', 'todo', { before: 'OP-4' })).rejects.toThrow('Card OP-4 is not in column "todo"');
     await expect(svc.move('OP-1', 'todo', { after: 'OP-1' })).rejects.toThrow('Card OP-1 is not in column "todo"');
+    // it is a mistake in what the caller asked for, like every other one: the shells report it as such
+    await expect(svc.move('OP-1', 'todo', { before: 'OP-4' })).rejects.toBeInstanceOf(ValidationError);
+    await expect(svc.move('OP-1', 'todo', { after: 'OP-4' })).rejects.toBeInstanceOf(ValidationError);
     await expect(svc.move('OP-1', 'limbo')).rejects.toThrow('Unknown status "limbo"');
     expect(await order(svc)).toEqual(['OP-1', 'OP-2', 'OP-3']);
   });
