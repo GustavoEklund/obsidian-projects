@@ -151,6 +151,11 @@ pub struct CardIndex {
 /// The file-system watcher and what it is watching. It lives on the worker thread, so it stops with it.
 struct Watching {
     watcher: RecommendedWatcher,
+    /// Where the watcher reports to, kept to be able to build a new watcher.
+    events: Sender<Message>,
+    /// The cards folder has just been attached: look at everything once more a tick later, in case the first look came
+    /// before the watch was really delivering.
+    second_look: bool,
     /// The cards folder, as the vault spells it.
     folder: PathBuf,
     /// Whether the cards folder itself is being watched. Until it exists (a vault whose first card is yet to be made), the
@@ -168,9 +173,17 @@ impl Watching {
     /// written before the watch began and the caller should look at everything.
     fn follow_folder(&mut self) -> bool {
         if self.attached && !self.folder.is_dir() {
-            // Let go of the watch on the folder that went away (a handle on Windows, a stream on macOS), so that a new
-            // folder of the same name can be watched.
-            let _ = self.watcher.unwatch(&self.folder);
+            // The folder went away. A watch on it may be dead without saying so (a handle on Windows, a stream on macOS),
+            // and a new watch for a folder of the same name can be answered "already watching" by a stale entry. So the
+            // whole watcher goes, and a fresh one is built when the folder is there again.
+            match new_watcher(self.events.clone()) {
+                Some(fresh) => self.watcher = fresh,
+                None => {
+                    let _ = self.watcher.unwatch(&self.folder);
+                }
+            }
+            self.above = None;
+            self.second_look = false;
             self.attached = false;
         }
         if self.attached {
@@ -183,6 +196,7 @@ impl Watching {
                 return false;
             }
         }
+        self.second_look = true;
         true
     }
 
@@ -450,10 +464,13 @@ fn worker(shared: &Shared, receiver: &mpsc::Receiver<Message>, options: &IndexOp
                         // the watch without a word, and a folder removed in one go may produce no event for its
                         // notes. Looking is one `stat`, so do it on a timer instead of trusting every back end. A
                         // folder that is not there while the index still holds notes means those notes are gone.
-                        if let Some(w) = watching.as_mut()
-                            && (follow_folder(shared, w) || (!w.attached && shared.has_notes()))
-                        {
-                            rescan = true;
+                        if let Some(w) = watching.as_mut() {
+                            let moved = follow_folder(shared, w);
+                            // The second look a tick after the folder was attached (see `Watching::second_look`).
+                            let second_look = !moved && std::mem::take(&mut w.second_look);
+                            if moved || second_look || (!w.attached && shared.has_notes()) {
+                                rescan = true;
+                            }
                         }
                     }
                 }
@@ -473,6 +490,23 @@ fn follow_folder(shared: &Shared, watching: &mut Watching) -> bool {
         locked(&shared.state).watching = watching.attached;
     }
     just_attached || changed
+}
+
+/// A file-system watcher that reports to `events`: what changed, or that everything has to be looked at again.
+fn new_watcher(events: Sender<Message>) -> Option<RecommendedWatcher> {
+    notify::recommended_watcher(move |event: notify::Result<notify::Event>| match event {
+        Ok(event) if event.need_rescan() => drop(events.send(Message::Rescan)),
+        Ok(event) if !matches!(event.kind, EventKind::Access(_)) => {
+            let look_at_everything = needs_rescan(&event.kind, &event.paths);
+            drop(events.send(Message::Changed(event.paths)));
+            if look_at_everything {
+                drop(events.send(Message::Rescan));
+            }
+        }
+        Ok(_) => {}
+        Err(_) => drop(events.send(Message::Rescan)),
+    })
+    .ok()
 }
 
 /// Whether an event means "look at everything". Some back ends (FSEvents on macOS) report a deleted, created or renamed
@@ -536,22 +570,11 @@ impl CardIndex {
 
         // The watcher goes first, so a change made while the vault loads is not lost: it queues up behind the load.
         let watching = options.watch_vault_root.as_deref().and_then(|vault| {
-            let events = sender.clone();
-            let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| match event {
-                Ok(event) if event.need_rescan() => drop(events.send(Message::Rescan)),
-                Ok(event) if !matches!(event.kind, EventKind::Access(_)) => {
-                    let look_at_everything = needs_rescan(&event.kind, &event.paths);
-                    drop(events.send(Message::Changed(event.paths)));
-                    if look_at_everything {
-                        drop(events.send(Message::Rescan));
-                    }
-                }
-                Ok(_) => {}
-                Err(_) => drop(events.send(Message::Rescan)),
-            })
-            .ok()?;
+            let watcher = new_watcher(sender.clone())?;
             let mut watching = Watching {
                 watcher,
+                events: sender.clone(),
+                second_look: false,
                 folder: vault.join(&shared.config.folder),
                 attached: false,
                 above: None,
