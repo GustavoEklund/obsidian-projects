@@ -53,7 +53,9 @@ if (isMain(import.meta.url)) {
     return position >= 0 ? process.argv[position + 1] : undefined;
   };
   // absolute, because the program runs with the vault as its working folder
-  const bin = path.resolve(arg('--bin') ?? at(`packages/mcp/target/release/oprojects${process.platform === 'win32' ? '.exe' : ''}`));
+  const bin = path.resolve(
+    arg('--bin') ?? at(`packages/mcp/target/release/oprojects${process.platform === 'win32' ? '.exe' : ''}`),
+  );
   const cards = Number(arg('--cards') ?? 2000);
   if (!existsSync(bin)) {
     console.error(`${bin} does not exist: build it first with \`npm run build -w packages/mcp\`.`);
