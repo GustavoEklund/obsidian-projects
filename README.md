@@ -16,33 +16,59 @@ live on the open board.
 
 ## Installation
 
+Everything ships from the [latest release](https://github.com/GustavoEklund/obsidian-projects/releases/latest), with one
+version for the three pieces. You can install just the ones you want.
+
+| Piece | Download | Needs |
+| --- | --- | --- |
+| Plugin | `main.js`, `manifest.json`, `styles.css` (or `obsidian-projects-<version>.zip`) | Obsidian ≥ 1.8.0 |
+| CLI | `oprojects.cjs` | Node ≥ 20 |
+| MCP server | `oprojects-mcp-<version>-<platform>` (`.tar.gz`, or `.zip` for Windows) | nothing: it is a single static binary |
+
+### Install the plugin
+
+Put `main.js`, `manifest.json` and `styles.css` in `<vault>/.obsidian/plugins/obsidian-projects/` (or unzip the `.zip`
+into `<vault>/.obsidian/plugins/`, it already has that folder), reload Obsidian, then open *Settings → Community plugins*
+and enable **Projects**. The [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin can install and update it too:
+add `GustavoEklund/obsidian-projects` as a beta plugin.
+
+### Install the CLI
+
+```bash
+curl -L -o ~/.local/bin/oprojects https://github.com/GustavoEklund/obsidian-projects/releases/latest/download/oprojects.cjs
+chmod +x ~/.local/bin/oprojects
+```
+
+Then, from any folder inside a vault:
+
+```bash
+oprojects init --prefix OP --me "Your Name"
+oprojects add "Fix login" -t bug -p high --due +3d
+oprojects board
+```
+
+### Install the MCP server
+
+See [MCP server → Install](#install) below.
+
+### Checking the download
+
+`SHA256SUMS.txt` lists the checksum of every file. With the files in one folder: `sha256sum -c --ignore-missing SHA256SUMS.txt`
+(on macOS, `shasum -a 256 -c --ignore-missing SHA256SUMS.txt`).
+
+### From source
+
 Requires Node ≥ 20.
 
 ```bash
 npm install
 npm run build
 npm run install:vault -- "/path/to/your/vault" --enable   # copies main.js, manifest.json, styles.css
-```
-
-Open Obsidian → *Settings → Community plugins* → enable **Projects** (if you did not use `--enable`).
-Use `--link` instead of copying while developing (`npm run dev` rebuilds; reload the plugin).
-
-CLI, from any folder inside a vault:
-
-```bash
 ln -s "$PWD/packages/cli/dist/oprojects.cjs" ~/.local/bin/oprojects && chmod +x packages/cli/dist/oprojects.cjs
-oprojects init --prefix OP --me "Your Name"
-oprojects add "Fix login" -t bug -p high --due +3d
-oprojects board
 ```
 
-### From a release
-
-Each [release](https://github.com/GustavoEklund/obsidian-projects/releases) carries `main.js`, `manifest.json` and
-`styles.css`: put them in `<vault>/.obsidian/plugins/obsidian-projects/`, reload Obsidian and enable **Projects**
-(the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin can install and update it from this repository
-too). The CLI is the single file `oprojects.cjs` (Node ≥ 20): make it executable and put it on your `PATH` as
-`oprojects`. `SHA256SUMS.txt` lists the checksums.
+Use `--link` instead of copying while developing (`npm run dev` rebuilds; reload the plugin in Obsidian).
+The MCP server is built separately, see below.
 
 Without `init` it works with the defaults (`Cards` folder, `OP` key). The vault is found through `--vault`,
 `$OPROJECTS_VAULT`, or by walking up the folders until a `.obsidian` is found.
@@ -140,8 +166,15 @@ in milliseconds. What it changes shows up live on an open board, and the other w
 
 Download the archive for your platform from the [latest release](https://github.com/GustavoEklund/obsidian-projects/releases/latest)
 (`oprojects-mcp-<version>-<platform>`: Linux x64 and arm64, both static; macOS Intel and Apple Silicon; Windows x64 and arm64),
-unpack it and put `oprojects-mcp` on your `PATH`. On macOS the binary is not signed: run
-`xattr -d com.apple.quarantine oprojects-mcp` once. To build it yourself, run `asdf install` (Rust comes from
+unpack it and put `oprojects-mcp` (`oprojects-mcp.exe` on Windows) on your `PATH`, for example on Linux:
+
+```bash
+tar -xzf oprojects-mcp-<version>-x86_64-unknown-linux-musl.tar.gz
+install oprojects-mcp-<version>-x86_64-unknown-linux-musl/oprojects-mcp ~/.local/bin/
+```
+
+To update, do the same with the new release (`install` replaces a binary that is running; `cp` cannot). On macOS the
+binary is not signed: run `xattr -d com.apple.quarantine oprojects-mcp` once. To build it yourself, run `asdf install` (Rust comes from
 `.tool-versions`) and `npm run build -w packages/mcp`; the binary is `packages/mcp/target/release/oprojects-mcp`.
 
 ### Connect an agent
