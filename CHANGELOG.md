@@ -8,6 +8,8 @@ are cut, is described in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-31
+
 ### Added
 
 - **Follow the cards an agent takes.** When a write through `move_card` takes a card out of the first column, or
@@ -88,7 +90,8 @@ called out here.
 - Live updates: changes made outside the board (CLI, sync, hand edits) appear on the open board.
 - Unit tests, a browser UI test and an end-to-end test inside the real Obsidian.
 
-[Unreleased]: https://github.com/GustavoEklund/obsidian-projects/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/GustavoEklund/obsidian-projects/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/GustavoEklund/obsidian-projects/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/GustavoEklund/obsidian-projects/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/GustavoEklund/obsidian-projects/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/GustavoEklund/obsidian-projects/releases/tag/0.1.0
