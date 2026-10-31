@@ -57,7 +57,7 @@ use tokio::sync::Semaphore;
 use crate::api::Board;
 use crate::server::debug;
 use crate::token::{self, Source, Token};
-use crate::tools::{Projects, ServerOptions};
+use crate::tools::{Projects, ServerOptions, Updates};
 
 /// The only path the server answers on.
 pub const PATH: &str = "/mcp";
@@ -101,6 +101,9 @@ pub struct HttpOptions {
     /// The bearer token every request must carry. Never printed.
     pub token: String,
     pub limits: Limits,
+    /// How the agent hears about the cards it takes. Never [`Updates::Channel`]: a server that keeps no session has no one
+    /// to push to.
+    pub updates: Updates,
 }
 
 impl std::fmt::Debug for HttpOptions {
@@ -115,7 +118,13 @@ impl std::fmt::Debug for HttpOptions {
 
 impl HttpOptions {
     pub fn new(port: u16, token: &Token) -> Self {
-        Self { port, token: token.secret().to_string(), limits: Limits::default() }
+        Self { port, token: token.secret().to_string(), limits: Limits::default(), updates: Updates::Off }
+    }
+
+    #[must_use]
+    pub fn with_updates(mut self, updates: Updates) -> Self {
+        self.updates = updates;
+        self
     }
 }
 
@@ -225,7 +234,7 @@ struct State {
 
 impl State {
     fn new(board: Arc<dyn Board>, options: &ServerOptions, http: &HttpOptions, port: u16) -> Self {
-        let template = Projects::new(board, options);
+        let template = Projects::new(board, options).with_updates(http.updates.clone());
         let config = StreamableHttpServerConfig::default()
             .with_legacy_session_mode(false)
             .with_json_response(true)

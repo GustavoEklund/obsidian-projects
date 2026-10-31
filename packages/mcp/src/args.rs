@@ -2,8 +2,9 @@
 //! it saves, and this server exists to be small.
 //!
 //! ```text
-//! oprojects-mcp [--vault <path>] [--read-only] [--author <name>]
+//! oprojects-mcp [--vault <path>] [--read-only] [--author <name>] [--updates watch|channel|off]
 //! oprojects-mcp --http [--port <n>] [--token <secret> | --token-file <path>] [--vault <path>] [--read-only] [--author <name>]
+//! oprojects-mcp watch <key>... [--vault <path>] [--author <name>] [--settle <seconds>]
 //! ```
 //!
 //! Each setting can also come from the environment (`OPROJECTS_VAULT`, `OPROJECTS_AUTHOR`, and for HTTP
@@ -13,8 +14,11 @@
 
 use std::path::PathBuf;
 
+use std::time::Duration;
+
 use crate::http::DEFAULT_PORT;
 use crate::token;
+use crate::watch::{SETTLE, WatchArgs};
 
 /// What the user asked the program to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +27,8 @@ pub enum Command {
     Run(Options),
     /// Serve the vault over MCP on a local HTTP port.
     Http { options: Options, http: HttpArgs },
+    /// Follow cards and print what happens to them, until each is done.
+    Watch(WatchArgs),
     /// Print the usage and exit.
     Help,
     /// Print the version and exit.
@@ -37,6 +43,19 @@ pub struct Options {
     pub read_only: bool,
     /// Who the comments the agent adds are signed by, when the call does not say.
     pub author: String,
+    /// How the agent hears about the cards it takes.
+    pub updates: UpdatesMode,
+}
+
+/// `--updates`: how the agent hears about the cards it takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdatesMode {
+    /// The result of the write that takes a card says how to follow it with the `Monitor` tool and `oprojects-mcp watch`.
+    Watch,
+    /// The server follows the card and pushes the updates to the session (Claude Code's channels).
+    Channel,
+    /// Nothing.
+    Off,
 }
 
 /// What `--http` adds to the command line.
@@ -67,6 +86,10 @@ pub enum ArgsError {
     HttpOnly(String),
     #[error("--token and --token-file cannot be used together: the token is either given or kept in a file")]
     TokenAndFile,
+    #[error("--updates channel needs stdin and stdout: a server shared over HTTP has no session to send updates to")]
+    ChannelNeedsStdio,
+    #[error("watch needs at least one card key (OP-12, or just 12)")]
+    WatchNeedsKey,
 }
 
 /// A `--flag value` or `--flag=value` option. `None` when `arg` is not this flag; the value is taken from the next
@@ -90,15 +113,19 @@ pub fn parse(
     env: &dyn Fn(&str) -> Option<String>,
 ) -> Result<Command, ArgsError> {
     let non_empty = |name: &str| env(name).filter(|v| !v.is_empty());
+    let mut rest = args.into_iter().peekable();
+    if rest.next_if(|first| first == "watch").is_some() {
+        return parse_watch(rest, env);
+    }
     let mut vault = None;
     let mut author = None;
+    let mut updates: Option<String> = None;
     let mut read_only = false;
     let mut http = false;
     let mut port: Option<String> = None;
     let mut token_flag: Option<String> = None;
     let mut token_file: Option<String> = None;
 
-    let mut rest = args.into_iter();
     while let Some(arg) = rest.next() {
         match arg.as_str() {
             "-h" | "--help" => return Ok(Command::Help),
@@ -110,6 +137,8 @@ pub fn parse(
                     vault = Some(value?);
                 } else if let Some(value) = value_of(&arg, "--author", &mut rest) {
                     author = Some(value?);
+                } else if let Some(value) = value_of(&arg, "--updates", &mut rest) {
+                    updates = Some(value?);
                 } else if let Some(value) = value_of(&arg, "--port", &mut rest) {
                     port = Some(value?);
                 } else if let Some(value) = value_of(&arg, "--token", &mut rest) {
@@ -125,10 +154,25 @@ pub fn parse(
         }
     }
 
+    let updates = match updates.as_deref() {
+        None | Some("watch") => UpdatesMode::Watch,
+        Some("channel") => UpdatesMode::Channel,
+        Some("off") => UpdatesMode::Off,
+        Some(other) => {
+            return Err(ArgsError::InvalidValue {
+                flag: "--updates".into(),
+                message: format!("\"{other}\" is not a mode: use watch, channel or off"),
+            });
+        }
+    };
+    if http && updates == UpdatesMode::Channel {
+        return Err(ArgsError::ChannelNeedsStdio);
+    }
     let options = Options {
         vault: vault.or_else(|| non_empty("OPROJECTS_VAULT")),
         read_only,
         author: author.or_else(|| non_empty("OPROJECTS_AUTHOR")).unwrap_or_else(|| DEFAULT_AUTHOR.to_string()),
+        updates,
     };
 
     if !http {
@@ -168,13 +212,60 @@ pub fn parse(
     })
 }
 
+/// The arguments of `watch`, after the word itself.
+fn parse_watch(
+    mut rest: impl Iterator<Item = String>,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Result<Command, ArgsError> {
+    let non_empty = |name: &str| env(name).filter(|v| !v.is_empty());
+    let (mut vault, mut author, mut settle) = (None, None, None::<String>);
+    let mut keys = Vec::new();
+    while let Some(arg) = rest.next() {
+        if arg == "-h" || arg == "--help" {
+            return Ok(Command::Help);
+        } else if let Some(value) = value_of(&arg, "--vault", &mut rest) {
+            vault = Some(value?);
+        } else if let Some(value) = value_of(&arg, "--author", &mut rest) {
+            author = Some(value?);
+        } else if let Some(value) = value_of(&arg, "--settle", &mut rest) {
+            settle = Some(value?);
+        } else if arg.starts_with('-') {
+            return Err(ArgsError::UnknownOption(arg));
+        } else {
+            keys.push(arg);
+        }
+    }
+    if keys.is_empty() {
+        return Err(ArgsError::WatchNeedsKey);
+    }
+    let settle = match settle {
+        None => SETTLE,
+        Some(text) => match text.parse::<f64>() {
+            Ok(seconds) if seconds > 0.0 && seconds <= 3600.0 => Duration::from_secs_f64(seconds),
+            _ => {
+                return Err(ArgsError::InvalidValue {
+                    flag: "--settle".into(),
+                    message: format!("\"{text}\" is not a number of seconds from 0 to 3600 (for example 3 or 0.5)"),
+                });
+            }
+        },
+    };
+    Ok(Command::Watch(WatchArgs {
+        keys,
+        vault: vault.or_else(|| non_empty("OPROJECTS_VAULT")),
+        author: author.or_else(|| non_empty("OPROJECTS_AUTHOR")).unwrap_or_else(|| DEFAULT_AUTHOR.to_string()),
+        settle,
+    }))
+}
+
 /// The text of `--help`.
 pub fn usage(version: &str) -> String {
     format!(
         "oprojects-mcp {version}: an MCP server for the cards of an Obsidian vault (Obsidian Projects)
 
-Usage: oprojects-mcp [--vault <path>] [--read-only] [--author <name>]
+Usage: oprojects-mcp [--vault <path>] [--read-only] [--author <name>] [--updates <mode>]
        oprojects-mcp --http [--port <n>] [--token <secret> | --token-file <path>] [--vault <path>] ...
+       oprojects-mcp watch <key>... [--vault <path>] [--author <name>] [--settle <seconds>]
 
 Options:
   --vault <path>   The vault to serve. Default: $OPROJECTS_VAULT, else the nearest folder
@@ -182,6 +273,12 @@ Options:
   --read-only      Offer only the tools that read: the agent cannot change anything.
   --author <name>  Who the comments added by the agent are signed by when the call does not
                    say. Default: $OPROJECTS_AUTHOR, else \"{DEFAULT_AUTHOR}\".
+  --updates <mode> How the agent hears about the cards it takes (moving one out of the first
+                   column, or assigning it to the agent): watch (default) tells it, in the result
+                   of that write, to follow the card with the Monitor tool and `watch`; channel
+                   follows the card inside the server and pushes updates to Claude Code as
+                   channel messages (stdin/stdout only; Claude Code must be allowed to listen,
+                   see the README); off does neither.
   --http           Serve over HTTP on this machine (127.0.0.1 only, there is no --host) instead of
                    stdin and stdout, so one server can be shared by several clients.
   --port <n>       With --http: the port. Default: {DEFAULT_PORT}. 0 picks a free one and prints it.
@@ -196,6 +293,12 @@ Options:
 
 With --http and no token at all, a random one is generated, printed once on stderr, and good
 for that run only.
+
+watch follows cards and prints one line on stdout for each thing that happens to them (a comment, a
+change, done), which is what the Monitor tool of Claude Code turns into notifications, and exits when
+every card is done. Comments signed by --author (default: $OPROJECTS_AUTHOR, else \"{DEFAULT_AUTHOR}\") are the
+agent's own and are not reported. A change is reported after the note has stayed the same for
+--settle seconds (default 3), so typing in the Obsidian editor is one line, not forty.
 
 The server speaks the Model Context Protocol over stdin and stdout, so it is meant to be
 started by an MCP client, not run by hand. To add it to Claude Code:
@@ -242,15 +345,29 @@ mod tests {
 
     #[test]
     fn no_arguments_serve_the_nearest_vault_with_everything_enabled() {
-        assert_eq!(options(&[]), Options { vault: None, read_only: false, author: "Agent".into() });
+        assert_eq!(
+            options(&[]),
+            Options { vault: None, read_only: false, author: "Agent".into(), updates: UpdatesMode::Watch }
+        );
     }
 
     #[test]
     fn every_flag_in_both_spellings() {
         let o = options(&["--vault", "/v", "--read-only", "--author", "Claude"]);
-        assert_eq!(o, Options { vault: Some("/v".into()), read_only: true, author: "Claude".into() });
+        assert_eq!(
+            o,
+            Options { vault: Some("/v".into()), read_only: true, author: "Claude".into(), updates: UpdatesMode::Watch }
+        );
         let o = options(&["--vault=/other", "--author=Cursor"]);
-        assert_eq!(o, Options { vault: Some("/other".into()), read_only: false, author: "Cursor".into() });
+        assert_eq!(
+            o,
+            Options {
+                vault: Some("/other".into()),
+                read_only: false,
+                author: "Cursor".into(),
+                updates: UpdatesMode::Watch
+            }
+        );
     }
 
     #[test]
@@ -334,7 +451,10 @@ mod tests {
     #[test]
     fn http_alone_serves_on_the_default_port_with_no_token_given() {
         let (options, http) = http(&["--http"]);
-        assert_eq!(options, Options { vault: None, read_only: false, author: "Agent".into() });
+        assert_eq!(
+            options,
+            Options { vault: None, read_only: false, author: "Agent".into(), updates: UpdatesMode::Watch }
+        );
         assert_eq!(http, HttpArgs { port: 8765, token: None, token_file: None });
     }
 
@@ -351,7 +471,10 @@ mod tests {
     #[test]
     fn the_http_flags_combine_with_the_common_ones() {
         let (options, h) = http(&["--http", "--vault", "/v", "--read-only", "--author", "Claude", "--port", "1"]);
-        assert_eq!(options, Options { vault: Some("/v".into()), read_only: true, author: "Claude".into() });
+        assert_eq!(
+            options,
+            Options { vault: Some("/v".into()), read_only: true, author: "Claude".into(), updates: UpdatesMode::Watch }
+        );
         assert_eq!(h.port, 1);
     }
 
@@ -468,5 +591,80 @@ mod tests {
         {
             assert!(text.contains(flag), "{flag}");
         }
+    }
+
+    #[test]
+    fn updates_default_to_watch_and_take_the_three_modes() {
+        assert_eq!(options(&[]).updates, UpdatesMode::Watch);
+        assert_eq!(options(&["--updates", "watch"]).updates, UpdatesMode::Watch);
+        assert_eq!(options(&["--updates=channel"]).updates, UpdatesMode::Channel);
+        assert_eq!(options(&["--updates", "off"]).updates, UpdatesMode::Off);
+    }
+
+    #[test]
+    fn an_unknown_updates_mode_says_what_is_valid() {
+        let error = run(&["--updates", "push"]).unwrap_err().to_string();
+        assert!(error.contains("--updates") && error.contains("watch, channel or off"), "{error}");
+        assert_eq!(run(&["--updates"]), Err(ArgsError::MissingValue("--updates".into())));
+    }
+
+    #[test]
+    fn channel_updates_need_stdio() {
+        assert_eq!(run(&["--http", "--updates", "channel"]), Err(ArgsError::ChannelNeedsStdio));
+        assert!(matches!(run(&["--http", "--updates", "watch"]), Ok(Command::Http { .. })));
+        assert!(matches!(run(&["--http", "--updates", "off"]), Ok(Command::Http { .. })));
+    }
+
+    fn watching(args: &[&str]) -> WatchArgs {
+        let mut all = vec!["watch"];
+        all.extend(args);
+        match run(&all).unwrap() {
+            Command::Watch(w) => w,
+            other => panic!("expected watch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn watch_takes_card_keys_and_the_options_in_any_order() {
+        let w = watching(&["OP-12", "--vault", "/v", "13", "--author=Claude", "--settle", "0.5"]);
+        assert_eq!(
+            w,
+            WatchArgs {
+                keys: vec!["OP-12".into(), "13".into()],
+                vault: Some("/v".into()),
+                author: "Claude".into(),
+                settle: Duration::from_millis(500),
+            }
+        );
+    }
+
+    #[test]
+    fn watch_defaults_come_from_the_environment_and_then_the_constants() {
+        let w = watching(&["12"]);
+        assert_eq!((w.vault, w.author.as_str(), w.settle), (None, "Agent", SETTLE));
+        let env = [("OPROJECTS_VAULT", "/env"), ("OPROJECTS_AUTHOR", "Cursor")];
+        let Command::Watch(w) = run_with_env(&["watch", "12"], &env).unwrap() else { panic!("watch") };
+        assert_eq!((w.vault.as_deref(), w.author.as_str()), (Some("/env"), "Cursor"));
+    }
+
+    #[test]
+    fn watch_without_a_key_or_with_a_bad_option_is_a_mistake() {
+        assert_eq!(run(&["watch"]), Err(ArgsError::WatchNeedsKey));
+        assert_eq!(run(&["watch", "--author", "A"]), Err(ArgsError::WatchNeedsKey));
+        assert_eq!(run(&["watch", "12", "--port", "1"]), Err(ArgsError::UnknownOption("--port".into())));
+        for bad in ["0", "-1", "abc", "nan", "3601", "inf"] {
+            let error = run(&["watch", "12", "--settle", bad]).unwrap_err();
+            assert!(matches!(error, ArgsError::InvalidValue { ref flag, .. } if flag == "--settle"), "{bad}: {error}");
+        }
+    }
+
+    #[test]
+    fn watch_help_is_the_help() {
+        assert_eq!(run(&["watch", "--help"]), Ok(Command::Help));
+    }
+
+    #[test]
+    fn a_key_that_looks_like_the_word_watch_later_in_the_line_is_still_unexpected() {
+        assert_eq!(run(&["--read-only", "watch"]), Err(ArgsError::UnexpectedArgument("watch".into())));
     }
 }

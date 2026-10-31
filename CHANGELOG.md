@@ -8,6 +8,22 @@ are cut, is described in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Follow the cards an agent takes.** When a write through `move_card` takes a card out of the first column, or
+  `update_card` assigns it to the agent, the answer now says how to hear about the card while the agent works or waits:
+  start the Monitor tool of Claude Code with `oprojects-mcp watch <key>`. The new `watch` command prints one line for each
+  comment, edit or move, and a last one when the card is done (or deleted), and then ends. It reads the notes and keeps
+  nothing, reports a change once the note has stayed the same for 3 seconds, and does not report the agent's own comments.
+- `--updates <watch|channel|off>` chooses how the agent hears about the cards it takes. `channel` follows them inside the
+  server and pushes the updates to the client as `notifications/claude/channel` messages (Claude Code's channels, a
+  research preview that an organization can block); it needs stdin and stdout, not `--http`.
+
+### Changed
+
+- The answers of `move_card` and `update_card` carry one more paragraph when the write takes a card, and the server's
+  instructions mention it. `--updates off` brings the old answers back.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added

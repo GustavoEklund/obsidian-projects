@@ -6,7 +6,8 @@ use std::time::Duration;
 use rmcp::{ServiceExt, service::ServerInitializeError, transport::stdio};
 
 use crate::api::Board;
-use crate::tools::{Projects, ServerOptions};
+use crate::channel;
+use crate::tools::{Projects, ServerOptions, Updates};
 
 /// The runtime the server runs on: one thread for the protocol, with timers (the protocol layer needs them, notably to
 /// shut down). The blocking pool serves the file I/O of the tools, and the stdin reader holds one of its threads for as
@@ -43,8 +44,9 @@ pub fn debug(message: impl AsRef<str>) {
 }
 
 /// Serves `board` over stdin/stdout until the client closes its end. A client that goes away before it ever says hello
-/// is not an error: there was simply nothing to serve.
-pub async fn serve_stdio(board: Arc<dyn Board>, options: &ServerOptions) -> anyhow::Result<()> {
+/// is not an error: there was simply nothing to serve. With [`Updates::Channel`] the updates of the cards the agent
+/// takes are sent to the client for as long as it is connected.
+pub async fn serve_stdio(board: Arc<dyn Board>, options: &ServerOptions, updates: Updates) -> anyhow::Result<()> {
     debug(format!(
         "serving board {} ({} columns), read-only: {}, comment author: {}",
         board.config().prefix,
@@ -52,9 +54,18 @@ pub async fn serve_stdio(board: Arc<dyn Board>, options: &ServerOptions) -> anyh
         options.read_only,
         options.author
     ));
-    match Projects::new(board, options).serve(stdio()).await {
+    let channel = match &updates {
+        Updates::Channel(channel) => Some(Arc::clone(channel)),
+        Updates::Off | Updates::Watch { .. } => None,
+    };
+    match Projects::new(board, options).with_updates(updates).serve(stdio()).await {
         Ok(running) => {
-            let reason = running.waiting().await?;
+            let pump = channel.map(|channel| tokio::spawn(channel::pump(channel, running.peer().clone())));
+            let reason = running.waiting().await;
+            if let Some(pump) = pump {
+                pump.abort();
+            }
+            let reason = reason?;
             debug(format!("the client is gone ({reason:?}): exiting"));
             Ok(())
         }

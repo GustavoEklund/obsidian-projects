@@ -169,9 +169,10 @@ Exit codes: `0` ok · `1` validation/not-found error · `2` incorrect usage. Wit
 ## MCP server
 
 `oprojects-mcp` lets an AI agent (Claude Code, Claude Desktop, Cursor, any MCP client) work on your board: list and
-filter cards, read one with its comments, create, update, move, comment, delete. It is written in Rust, runs locally and
-is built to be small: **about 5 MB of memory when idle, 11 MB with 2,000 cards indexed, a 3 MB binary**, and it answers
-in milliseconds. What it changes shows up live on an open board, and the other way round.
+filter cards, read one with its comments, create, update, move, comment, delete, and hear about the cards it takes
+while it works on them. It is written in Rust, runs locally and is built to be small: **about 5 MB of memory when idle,
+11 MB with 2,000 cards indexed, a 3 MB binary**, and it answers in milliseconds. What it changes shows up live on an open
+board, and the other way round.
 
 ### Install
 
@@ -225,12 +226,61 @@ error that says what would be valid (for example the columns of the board), so t
 | --- | --- |
 | `--vault <path>` | The vault to serve. |
 | `--read-only` | Registers only the three tools that read: the agent cannot change anything. |
-| `--author <name>` | Signs the comments the agent adds ($`OPROJECTS_AUTHOR`; default "Agent"). |
+| `--author <name>` | Signs the comments the agent adds ($`OPROJECTS_AUTHOR`; default "Agent"). Comments with this author are not reported back to the agent by [`watch`](#follow-the-cards-you-take). |
+| `--updates <mode>` | How the agent hears about the cards it takes: `watch` (default), `channel` or `off`. [Details below](#follow-the-cards-you-take). |
 | `--http` | Serves over HTTP instead of stdin/stdout, so one server can be shared by several clients (below). |
 | `--port <n>` | With `--http`: the port (default 8765; `0` picks a free one). |
 | `--token <secret>`, `--token-file <path>` | With `--http`: the bearer token ($`OPROJECTS_MCP_TOKEN`). |
 
 `OPROJECTS_LOG=debug` prints diagnostics on stderr; a healthy server is silent.
+
+### Follow the cards you take
+
+An agent that takes a card wants to hear when someone comments on it, edits it or finishes it, whether it is busy with
+something else or waiting for a prompt. A card is *taken* when a write made through `move_card` takes it out of the first
+column (or back from a done column), or when `update_card` assigns it to the agent (the `--author` name). The answer of
+that write then says how to follow the card:
+
+```
+Moved: OP-12 …
+
+You took OP-12. To hear about it while you work or wait (comments, edits, done), start the Monitor tool with
+timeout_ms 1800000 and this command: /usr/local/bin/oprojects-mcp watch --vault /path/to/vault --author Claude OP-12. …
+```
+
+The command is `oprojects-mcp watch <key>…`, made for the `Monitor` tool of Claude Code: every line it prints is one update,
+which reaches a busy session with its next step and wakes an idle one, and it ends by itself when every card it follows is
+done. It keeps nothing anywhere: the command is the subscription, so it ends with the session that started it. A monitor
+lives at most 30 minutes, so the agent starts it again when it expires.
+
+```
+oprojects-mcp watch <key>… [--vault <path>] [--author <name>] [--settle <seconds>]
+```
+
+What it reports, one line for each card at a time:
+
+- a **new or edited comment** (signed by anyone but `--author`), cut at 300 characters; `get_card` has the rest;
+- the **column** a card was moved to, and a change to its **title, type, priority, assignee, labels, due date, estimate or
+  parent**, and **description edits**;
+- as the last line, that the card is **done** (it was moved to a done column) or **deleted**. Nothing follows it, and the
+  command ends when no card is left. A card that is already done is said so and not followed.
+
+The notes are read twice a second and a change is reported once the note has stayed the same for `--settle` seconds (3 by
+default). The plugin saves while a person types, so a description written in forty saves is one line, and an edit that is
+undone before it settles is none. Dragging a card inside its column is not a change.
+
+Two limits, both from what a note records: it does not say who changed a field, so what the agent changed itself (moving
+its own card to Review) comes back as an update too, and the instructions the server sends tell the agent to ignore those;
+and `watch` only reads, so it is available with `--read-only` too (the agent runs it by hand there, since no tool takes
+a card).
+
+**`--updates channel`** is the other way, for clients that support *channels* (Claude Code's research preview): the
+server follows the card itself and pushes each update into the session as a `notifications/claude/channel` message, with
+no second process. Claude Code only listens to a custom channel when started with
+`claude --dangerously-load-development-channels server:obsidian-projects`, and an organization can forbid that
+(`channelsEnabled`), in which case the message is dropped without a word and `watch` is the way. It needs stdin and stdout
+(not `--http`), because a server shared by several clients has no session to push to. `--updates off` turns all of this
+off.
 
 ### One server for several clients (HTTP)
 

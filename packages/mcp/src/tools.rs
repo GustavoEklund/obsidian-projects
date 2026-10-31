@@ -16,9 +16,11 @@ use rmcp::{
 };
 use serde_json::{Map, Value};
 
+use crate::activity;
 use crate::api::Board;
+use crate::channel::{self, Channel};
 use crate::ops::{self, AddComment, CreateCard, DeleteComment, EditComment, KeyArgs, ListCards, MoveCard, UpdateCard};
-use crate::types::BoardConfig;
+use crate::types::{BoardConfig, Card};
 
 /// Tools that read. They are always offered.
 pub const READ_TOOLS: [&str; 3] = ["list_cards", "get_card", "board_summary"];
@@ -35,6 +37,19 @@ pub struct ServerOptions {
     pub author: String,
 }
 
+/// How the agent hears about the cards it takes (a card is taken when a write moves it out of the first column or assigns
+/// it to the agent: see [`activity::took`]).
+#[derive(Clone)]
+pub enum Updates {
+    /// Not at all.
+    Off,
+    /// The result of the write says how to follow the card with the Monitor tool. `command` is the `oprojects-mcp watch`
+    /// command line up to the card keys.
+    Watch { command: String },
+    /// The server follows the card itself and sends its updates as channel messages.
+    Channel(Arc<Channel>),
+}
+
 /// The server: a board and the tools that act on it. Cloning is cheap (the board is shared, the router holds `Arc`s):
 /// the HTTP transport asks for one handler per request.
 #[derive(Clone)]
@@ -42,6 +57,7 @@ pub struct Projects {
     board: Arc<dyn Board>,
     author: String,
     instructions: String,
+    updates: Updates,
     tool_router: ToolRouter<Self>,
 }
 
@@ -60,7 +76,25 @@ impl Projects {
             route.attr.input_schema = Arc::new(schema);
         }
         let instructions = instructions(board.config(), options.read_only);
-        Self { board, author: options.author.clone(), instructions, tool_router }
+        Self { board, author: options.author.clone(), instructions, updates: Updates::Off, tool_router }
+    }
+
+    /// Says how the agent hears about the cards it takes, and tells it so at the start.
+    #[must_use]
+    pub fn with_updates(mut self, updates: Updates) -> Self {
+        match &updates {
+            Updates::Off => {}
+            Updates::Watch { .. } => self.instructions.push_str(
+                " When a write makes you take a card (moving it out of the first column, or assigning it to yourself), \
+                 its result says how to follow the card's updates with the Monitor tool.",
+            ),
+            Updates::Channel(_) => self.instructions.push_str(
+                " Updates about the cards you take (comments, edits, done) arrive as channel messages: act on what asks \
+                 something of you and answer with add_comment.",
+            ),
+        }
+        self.updates = updates;
+        self
     }
 
     /// The tools this server offers, as `tools/list` shows them.
@@ -128,7 +162,13 @@ impl Projects {
         annotations(destructive_hint = true, idempotent_hint = true, open_world_hint = false)
     )]
     async fn update_card(&self, Parameters(args): Parameters<UpdateCard>) -> std::result::Result<String, String> {
-        self.run(move |board| ops::update_card(board, args)).await
+        let (updates, author, key) = (self.updates.clone(), self.author.clone(), args.key.clone());
+        self.run(move |board| {
+            let before = followed_before(&updates, board, &key);
+            let text = ops::update_card(board, args)?;
+            Ok(follow(&updates, board, &author, &key, before, text))
+        })
+        .await
     }
 
     #[tool(
@@ -136,7 +176,13 @@ impl Projects {
         annotations(destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn move_card(&self, Parameters(args): Parameters<MoveCard>) -> std::result::Result<String, String> {
-        self.run(move |board| ops::move_card(board, args)).await
+        let (updates, author, key) = (self.updates.clone(), self.author.clone(), args.key.clone());
+        self.run(move |board| {
+            let before = followed_before(&updates, board, &key);
+            let text = ops::move_card(board, args)?;
+            Ok(follow(&updates, board, &author, &key, before, text))
+        })
+        .await
     }
 
     #[tool(
@@ -176,9 +222,45 @@ impl Projects {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for Projects {
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
+        if matches!(self.updates, Updates::Channel(_)) {
+            capabilities.experimental.get_or_insert_default().insert(channel::CAPABILITY.into(), Map::new());
+        }
+        ServerConfig::new(capabilities)
             .with_server_info(Implementation::new("oprojects-mcp", env!("CARGO_PKG_VERSION")))
             .with_instructions(self.instructions.clone())
+    }
+}
+
+// --- following the cards the agent takes ----------------------------------------------------------------------------
+
+/// The card as it is before a write that may take it. Nothing is read when no updates are wanted.
+fn followed_before(updates: &Updates, board: &dyn Board, key: &str) -> Option<Card> {
+    if matches!(updates, Updates::Off) { None } else { board.get(key).ok() }
+}
+
+/// What the agent reads after a write that took a card: how to hear about it, or that it will be told. Anything else
+/// comes back as it was.
+fn follow(updates: &Updates, board: &dyn Board, author: &str, key: &str, before: Option<Card>, text: String) -> String {
+    let Some(before) = before else { return text };
+    let Ok(after) = board.get(key) else { return text };
+    if !activity::took(&before, &after, board.config(), author) {
+        return text;
+    }
+    match updates {
+        Updates::Off => text,
+        Updates::Watch { command } => format!(
+            "{text}\n\nYou took {key}. To hear about it while you work or wait (comments, edits, done), start the \
+             Monitor tool with timeout_ms 1800000 and this command: {command} {key}. Each line it prints is an update, \
+             and it ends by itself when the card is done: start it again if it expires first. Changes you made yourself \
+             come back as updates too: ignore those.",
+            key = after.key
+        ),
+        Updates::Channel(channel) if channel.follow(&after.key) => format!(
+            "{text}\n\nYou took {key}: you will be told here, as channel messages, when it changes or is done.",
+            key = after.key
+        ),
+        Updates::Channel(_) => text,
     }
 }
 

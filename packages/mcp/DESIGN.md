@@ -104,10 +104,40 @@ Serving HTTP adds about 0.6 MB to the binary and nothing measurable to the memor
 the index, not the transport. The tests (`tests/http.rs` in process, `scripts/mcp-tests/http.test.ts` against the binary with
 `fetch` and the official SDK client) hold the budgets: at most 8 MB idle, and at most 3 MB of growth over 500 requests.
 
+## Following the cards an agent takes
+
+An agent that took a card should hear about it when a person comments or edits, while it is busy or while it waits. The
+pieces, in `src/activity.rs`, `src/watch.rs` and `src/channel.rs`:
+
+- **`activity`** is pure: it compares two states of one card (comments, the column, the fields, the description; never
+  the rank, `updated` or the derived checklist), words the result as one line, and says whether a write *took* the card
+  (left the first column, came back from done, or assigned it to the agent).
+- **`Watcher`** keeps, for each followed card, the state the agent last heard about, and reads the note twice a second. It
+  reports a change once the note has stayed the same for the settle time, comparing the last reported state with the end
+  of the burst: the plugin saves while a person types, so this makes one line out of forty saves and none out of an edit
+  that was undone. It is given the time, so its tests run without waiting.
+- **Polling, not events.** A few notes read twice a second cost nothing, and a poll has none of the platform quirks of a
+  file-system watcher (see above). The index is not involved: it exists to answer many reads quickly.
+- **`oprojects-mcp watch`** is the `Watcher` on stdout, one line per update, ending when nothing is left to follow. It is
+  built for the `Monitor` tool of Claude Code, which turns each line into a notification (this reaches a busy session and
+  wakes an idle one) and ends with the session, so the command *is* the subscription and nothing is stored. It lives in
+  this binary and not in `oprojects` because the corpus pins that command line's help text to the TypeScript one, and the
+  agent already has this binary. It has no TypeScript reference: the Rust tests are all its proof (`tests/watch.rs` over an
+  in-memory vault with a fake clock, `tests/watch_process.rs` on the real binary).
+- **`--updates channel`** puts a `Watcher` inside the server, started by the tools that take a card, and sends each update
+  as a `notifications/claude/channel` message from a task that polls it. The capability is declared as experimental
+  `claude/channel`. Claude Code accepts it only for a server started with `--dangerously-load-development-channels`, which
+  an organization may forbid, and drops what it does not listen to without a word: so it is off by default and the
+  default (`watch`) needs nothing from the client but the `Monitor` tool. It is stdio only: the HTTP server is stateless
+  and has no session to push to.
+- **What is not solved.** A note does not say who wrote a field, so a change the agent made itself comes back to it (the
+  agent's own comments are filtered by author). Telling them apart would take a second record next to the note, which this
+  does not add; the instructions tell the agent to ignore the echo.
+
 ## Safety
 
 `--read-only` removes every write tool. Writes never touch anything outside the vault's cards folder. The server makes no
-network requests of its own.
+network requests of its own. `watch` only reads notes and writes to stdout.
 
 ## Tools
 

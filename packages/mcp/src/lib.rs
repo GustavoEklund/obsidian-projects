@@ -4,10 +4,12 @@
 //! notes are read and written by the Obsidian plugin, the CLI and this server, so the three must agree byte for byte
 //! on every format. `tests/fixtures` holds a corpus generated from the TypeScript core that this crate is tested
 //! against, and CI fails when the corpus is stale.
+pub mod activity;
 pub mod api;
 pub mod args;
 pub mod body;
 pub mod card;
+pub mod channel;
 pub mod cli;
 pub mod config;
 pub mod due;
@@ -27,5 +29,6 @@ pub mod token;
 pub mod tools;
 pub mod types;
 pub mod vault;
+pub mod watch;
 
 pub use error::{Error, Result};
