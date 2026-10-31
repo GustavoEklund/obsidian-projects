@@ -27,8 +27,16 @@ const PEOPLE = ['Ana', 'Bruno', 'Carla', 'Diego'];
 const DESCRIPTION =
   'The user lands on the home page instead of the page they came from after signing in through the SSO redirect. ';
 
-/** A vault with `count` realistic cards (a short description with a checklist, two comments each). Deterministic. */
-export async function createVault(count: number, options: { prefix?: string; me?: string } = {}): Promise<TestVault> {
+/**
+ * A vault with `count` realistic cards (a short description with a checklist, two comments each). Deterministic for a given
+ * `now` (epoch ms), which is the clock by default: the cards are dated then and fall due in the days after it. A fixed
+ * date would not do, because the server hides done cards resolved more than 14 days ago, so a vault dated once would lose
+ * its done cards two weeks later.
+ */
+export async function createVault(
+  count: number,
+  options: { prefix?: string; me?: string; now?: number } = {},
+): Promise<TestVault> {
   const root = mkdtempSync(path.join(tmpdir(), 'oprojects-mcp-vault-'));
   mkdirSync(path.join(root, '.obsidian'), { recursive: true });
   const config: BoardConfig = {
@@ -42,7 +50,8 @@ export async function createVault(count: number, options: { prefix?: string; me?
 
   const storage = new FsStorage(root);
   const ranks = spreadRanks(Math.max(1, Math.ceil(count / STATUSES.length)));
-  const now = '2026-10-15T12:00:00.000Z';
+  const today = options.now ?? Date.now();
+  const now = new Date(today).toISOString();
   for (let i = 1; i <= count; i++) {
     const status = STATUSES[i % STATUSES.length]!;
     const card: Card = {
@@ -54,7 +63,7 @@ export async function createVault(count: number, options: { prefix?: string; me?
       priority: PRIORITIES[i % PRIORITIES.length]!,
       assignee: PEOPLE[i % PEOPLE.length],
       labels: ['api', i % 5 ? 'backend' : 'ux'],
-      due: `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`,
+      due: new Date(today + (1 + (i % 28)) * 86_400_000).toISOString().slice(0, 10),
       estimate: 1 + (i % 8),
       rank: ranks[Math.floor((i - 1) / STATUSES.length)]!,
       created: now,

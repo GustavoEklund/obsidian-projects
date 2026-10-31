@@ -125,6 +125,20 @@ describe('McpProcess', () => {
 });
 
 describe('createVault', () => {
+  it('dates the cards by the clock unless told otherwise, so that done cards are never old enough to be hidden', async () => {
+    const before = Date.now();
+    const vault = await createVault(8);
+    try {
+      const config = await loadBoardConfig(vault.root);
+      const cards = await new CardService(new FsStorage(vault.root), config).list();
+      expect(Date.parse(cards[0]!.created)).toBeGreaterThanOrEqual(before);
+      expect(cards.filter((c) => c.status === 'done').every((c) => c.resolved === cards[0]!.created)).toBe(true);
+      expect(cards.every((c) => c.due! > cards[0]!.created.slice(0, 10))).toBe(true);
+    } finally {
+      vault.cleanup();
+    }
+  });
+
   it('writes the requested number of cards, and the reference core reads them back', async () => {
     const vault = await createVault(40);
     try {
@@ -143,9 +157,10 @@ describe('createVault', () => {
     }
   });
 
-  it('is deterministic apart from the folder it lives in, and cleans up after itself', async () => {
-    const a = await createVault(5, { prefix: 'ZZ', me: 'Bruno' });
-    const b = await createVault(5, { prefix: 'ZZ', me: 'Bruno' });
+  it('is deterministic for a given time, apart from the folder it lives in, and cleans up after itself', async () => {
+    const now = Date.parse('2026-10-15T12:00:00.000Z');
+    const a = await createVault(5, { prefix: 'ZZ', me: 'Bruno', now });
+    const b = await createVault(5, { prefix: 'ZZ', me: 'Bruno', now });
     try {
       const read = async (root: string) => new CardService(new FsStorage(root), await loadBoardConfig(root)).list();
       expect(await read(a.root)).toEqual(await read(b.root));
