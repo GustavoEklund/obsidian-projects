@@ -14,10 +14,16 @@ export class VaultSync {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private started = false;
 
+  /**
+   * `onApplied` hears about every card a vault event actually changed (not the initial load, not an echo of our own
+   * write that changes nothing), with what the store held before. It runs inside the batch, so it must be quick and
+   * can never break the board: a throw is swallowed.
+   */
   constructor(
     private readonly plugin: Plugin,
     private readonly store: CardStore,
     private readonly getConfig: () => BoardConfig,
+    private readonly onApplied?: (prev: Card | undefined, next: Card) => void,
   ) {}
 
   private get vault() {
@@ -77,8 +83,17 @@ export class VaultSync {
     );
     this.store.batch(() => {
       for (const { path, card } of updates) {
-        if (card) this.store.apply(card);
-        else this.store.removePath(path);
+        if (!card) {
+          this.store.removePath(path);
+          continue;
+        }
+        const prev = this.store.get(card.key);
+        if (!this.store.apply(card)) continue;
+        try {
+          this.onApplied?.(prev, card);
+        } catch {
+          // a listener (a notification) must never keep the board from updating
+        }
       }
     });
   }

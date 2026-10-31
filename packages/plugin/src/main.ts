@@ -1,5 +1,6 @@
 import { CardService, DEFAULT_CONFIG, normalizeConfig, type BoardConfig, type Card } from '@oprojects/core';
 import { FuzzySuggestModal, Plugin, getIconIds, getLanguage, type App } from 'obsidian';
+import { CommentNotifier } from './comment-notifier';
 import { CardsHost } from './host-impl';
 import { setLanguage, t } from './i18n';
 import { ObsidianPlatform } from './obsidian-platform';
@@ -13,6 +14,8 @@ import { VaultSync } from './vault-sync';
 interface PluginData {
   version: 1;
   board: BoardConfig;
+  /** Plugin-only settings; the CLI ignores them. A missing key means the default (on). */
+  notify?: { comments?: boolean };
 }
 
 /** Newer Obsidian builds renamed the kanban icon; take whichever exists. */
@@ -50,19 +53,36 @@ export default class CardsPlugin extends Plugin {
   service!: CardService;
   host!: CardsHost;
   iconName = 'layout-dashboard';
+  /** Tell me about new comments from someone else (a desktop notification). */
+  notifyComments = true;
   private platform!: ObsidianPlatform;
   private sync!: VaultSync;
+  private notifier!: CommentNotifier;
 
   override async onload(): Promise<void> {
     setLanguage(getLanguage());
     this.iconName = pickIcon();
-    this.config = await this.loadConfig();
+    const data = (await this.loadData()) as Partial<PluginData> | null;
+    this.config = normalizeConfig(data?.board ?? DEFAULT_CONFIG);
+    this.notifyComments = data?.notify?.comments !== false;
 
     const storage = new ObsidianStorage(this.app);
     this.rebuildService(storage);
     this.platform = new ObsidianPlatform(this.app);
     this.host = new CardsHost(this.store, () => this.service, this.platform);
-    this.sync = new VaultSync(this, this.store, () => this.config);
+    this.notifier = new CommentNotifier({
+      enabled: () => this.notifyComments,
+      me: () => this.config.me,
+      focused: () => document.hasFocus(),
+      inApp: (message) => this.platform.notify(message),
+      open: (card) => this.platform.openNote(card),
+    });
+    this.sync = new VaultSync(
+      this,
+      this.store,
+      () => this.config,
+      (prev, next) => this.notifier.cardChanged(prev, next),
+    );
 
     this.registerView(VIEW_TYPE, (leaf) => new BoardView(leaf, this));
     this.addRibbonIcon(this.iconName, t('ribbon'), () => void this.openBoard());
@@ -104,19 +124,28 @@ export default class CardsPlugin extends Plugin {
   async updateConfig(next: BoardConfig): Promise<void> {
     const previous = this.config;
     this.config = normalizeConfig(next);
-    await this.saveData({ version: 1, board: this.config } satisfies PluginData);
+    await this.persist();
     this.rebuildService(new ObsidianStorage(this.app));
     if (previous.folder !== this.config.folder) await this.sync.loadAll();
     else this.store.touch();
   }
 
+  /** Called by the settings tab. */
+  async setNotifyComments(on: boolean): Promise<void> {
+    this.notifyComments = on;
+    await this.persist();
+  }
+
+  private persist(): Promise<void> {
+    return this.saveData({
+      version: 1,
+      board: this.config,
+      notify: { comments: this.notifyComments },
+    } satisfies PluginData);
+  }
+
   private rebuildService(storage: ObsidianStorage): void {
     // The in-memory store feeds key/rank allocation, so creating or moving a card never rescans the vault.
     this.service = new CardService(storage, this.config, { snapshot: () => this.store.all() as Card[] });
-  }
-
-  private async loadConfig(): Promise<BoardConfig> {
-    const data = (await this.loadData()) as Partial<PluginData> | null;
-    return normalizeConfig(data?.board ?? DEFAULT_CONFIG);
   }
 }

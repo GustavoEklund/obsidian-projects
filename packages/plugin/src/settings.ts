@@ -94,6 +94,13 @@ export class CardsSettingTab extends PluginSettingTab {
         });
       });
 
+    new Setting(containerEl)
+      .setName(t('settings.notify'))
+      .setDesc(t('settings.notify.desc'))
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.notifyComments).onChange((on) => void this.plugin.setNotifyComments(on)),
+      );
+
     this.renderColumns(containerEl);
   }
 

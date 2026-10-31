@@ -131,6 +131,10 @@ The file is always `Cards/KEY-n.md`; moving or renaming the note does not break 
   (420 px). The width is saved with the layout, with a 300 px minimum and a minimum space left for the board.
 - **Comments**: a thread in the panel (author, time, rendered Markdown), edit/delete, `Ctrl+Enter` posts,
   a draft per card and a 💬 counter on the card. The author is your name in *Settings → Projects → My name*.
+- **Notifications**: when someone else (a teammate, an AI agent) adds a comment to a card, you get a desktop notification
+  with the card, the author and the start of the text; clicking it opens the card's note. With Obsidian in focus it is a
+  short notice inside the app instead. Comments signed with *My name* (below) never notify, only comments added while
+  Obsidian is running do, and *Settings → Projects → Notify me of new comments* turns it off.
 - **Filters**: search (accent-insensitive, over title/key/label/description), assignee, type, priority, label, epic, "only mine".
   They are saved with the workspace layout.
 - **Quick create** at the bottom of each column: `Enter` creates and stays open; first line = title, the rest = description.
@@ -425,6 +429,8 @@ top of `main.js` and `oprojects.cjs`.
   use the time zone the server started in; a server left running across a daylight-saving change keeps the old offset
   until it restarts. Two *processes* editing the very same note at the same instant can still lose one of the edits
   (neither the plugin, the CLI nor the server holds a cross-process lock); creating cards at the same time is safe.
+- Following cards: the notification of a new comment comes from the plugin, so Obsidian has to be running; and a change a
+  card's own agent made comes back to it as an update, because the note does not say who wrote a field.
 - The plugin uses only the Obsidian API (no Node) but **has not been tested on a phone**; dragging uses HTML5 DnD
   (on touch, use the context menu or `Alt+arrows`).
 - When you remove a column in the settings, its cards appear in the first column (the notes do not change).

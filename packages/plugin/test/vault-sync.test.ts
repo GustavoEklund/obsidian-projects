@@ -352,3 +352,74 @@ describe('VaultSync with a custom folder', () => {
     ).toEqual(['OP-1', 'OP-4']);
   });
 });
+
+describe('VaultSync onApplied', () => {
+  let applied: Array<{ prev: Card | undefined; next: Card }>;
+  let listening: VaultSync;
+
+  const withComment = (key: string, text: string) =>
+    note(key, { comments: [{ id: 'c1', author: 'Claude', at: '2026-10-20T12:05:00.000Z', text }] });
+
+  beforeEach(async () => {
+    applied = [];
+    listening = new VaultSync(
+      plugin as unknown as Plugin,
+      store,
+      () => config,
+      (prev, next) => applied.push({ prev, next }),
+    );
+    vault().seed({ 'Cards/OP-1.md': note('OP-1'), 'Cards/OP-2.md': note('OP-2') });
+    await listening.start();
+  });
+
+  afterEach(() => listening.dispose());
+
+  it('is not called for the initial load', () => {
+    expect(applied).toEqual([]);
+  });
+
+  it('is called with what the store held before and what the note says now', async () => {
+    vault().write('Cards/OP-1.md', withComment('OP-1', 'I pushed the fix.'));
+    await vi.advanceTimersByTimeAsync(SETTLE + 1);
+    expect(applied).toHaveLength(1);
+    expect(applied[0]!.prev!.comments).toEqual([]);
+    expect(applied[0]!.next.comments.map((c) => c.text)).toEqual(['I pushed the fix.']);
+  });
+
+  it('is called with no previous state for a card that is new to the board', async () => {
+    vault().write('Cards/OP-3.md', note('OP-3'));
+    await vi.advanceTimersByTimeAsync(SETTLE + 1);
+    expect(applied.map((a) => [a.next.key, a.prev])).toEqual([['OP-3', undefined]]);
+  });
+
+  it('is not called for an echo that changes nothing, nor for a deletion', async () => {
+    vault().write('Cards/OP-1.md', vault().files.get('Cards/OP-1.md')!);
+    vault().delete('Cards/OP-2.md');
+    await vi.advanceTimersByTimeAsync(SETTLE + 1);
+    expect(applied).toEqual([]);
+  });
+
+  it('is called once per changed card in a burst', async () => {
+    vault().write('Cards/OP-1.md', withComment('OP-1', 'a'));
+    vault().write('Cards/OP-2.md', withComment('OP-2', 'b'));
+    await vi.advanceTimersByTimeAsync(SETTLE + 1);
+    expect(applied.map((a) => a.next.key).sort()).toEqual(['OP-1', 'OP-2']);
+  });
+
+  it('never keeps the board from updating when it throws', async () => {
+    const other = new CardStore();
+    const throwing = new VaultSync(
+      plugin as unknown as Plugin,
+      other,
+      () => config,
+      () => {
+        throw new Error('the notification broke');
+      },
+    );
+    await throwing.start();
+    vault().write('Cards/OP-1.md', note('OP-1', { title: 'still applied' }));
+    await vi.advanceTimersByTimeAsync(SETTLE + 1);
+    expect(other.get('OP-1')!.title).toBe('still applied');
+    throwing.dispose();
+  });
+});

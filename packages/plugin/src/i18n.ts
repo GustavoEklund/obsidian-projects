@@ -106,6 +106,9 @@ const en = {
   'settings.members.desc': 'Comma-separated names suggested in the assignee field.',
   'settings.hide': 'Hide old done cards after (days)',
   'settings.hide.desc': 'Done cards resolved longer ago than this leave the board (0 = never). They stay in the vault.',
+  'settings.notify': 'Notify me of new comments',
+  'settings.notify.desc':
+    'When someone else (a teammate, or an AI agent) comments on a card, show a desktop notification. Comments signed with your name never notify.',
   'settings.columns': 'Columns',
   'settings.columns.desc':
     'Order = board order. Renaming is safe; removing a column moves its cards into the first one on screen (notes are not changed).',
@@ -230,6 +233,9 @@ const pt: Record<Key, string> = {
   'settings.members.desc': 'Nomes separados por vírgula, sugeridos no campo de responsável.',
   'settings.hide': 'Ocultar concluídos após (dias)',
   'settings.hide.desc': 'Cards concluídos há mais tempo saem do quadro (0 = nunca). Continuam no cofre.',
+  'settings.notify': 'Avisar de novos comentários',
+  'settings.notify.desc':
+    'Quando outra pessoa (alguém do time ou um agente de IA) comentar em um card, mostra uma notificação no desktop. Comentários assinados com o seu nome nunca avisam.',
   'settings.columns': 'Colunas',
   'settings.columns.desc':
     'A ordem é a do quadro. Renomear é seguro; remover uma coluna move seus cards para a primeira na tela (as notas não mudam).',

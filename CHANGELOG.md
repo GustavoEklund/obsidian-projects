@@ -18,6 +18,8 @@ are cut, is described in [RELEASING.md](RELEASING.md).
 - `--updates <watch|channel|off>` chooses how the agent hears about the cards it takes. `channel` follows them inside the
   server and pushes the updates to the client as `notifications/claude/channel` messages (Claude Code's channels, a
   research preview that an organization can block); it needs stdin and stdout, not `--http`.
+- **Notifications in the plugin.** A comment added by someone else shows a desktop notification (a notice inside the app
+  when Obsidian has the focus). *Settings → Projects → Notify me of new comments* turns it off.
 
 ### Changed
 
